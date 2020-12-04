@@ -1,0 +1,24 @@
+services:
+  ggyo:
+    # image: bycepto/ggyo
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        GITHUB_TOKEN: "${GITHUB_TOKEN}"
+    network_mode: host  # TODO: this is required to connect to local db, use pg image instead?
+    stop_grace_period: 1s
+    # restart: on-failure:5
+    env_file:
+      - ggyo.env
+    depends_on:
+      - ggyo_durak
+  ggyo_durak:
+    # image: bycepto/ggyo_durak
+    build:
+      context: ./durak_server # TODO: allow user to pass in durak_server directory
+      dockerfile: Dockerfile
+    network_mode: host  # TODO: this is required to connect to local db, use pg image instead?
+    stop_grace_period: 1s
+    env_file:
+      - ggyo_durak.env
