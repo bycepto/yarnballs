@@ -85,8 +85,8 @@ type Route
     | YarnballsRoom Yarnballs.Page.Room.Page
 
 
-router : P.Parser (Route -> a) a
-router =
+router : Bool -> P.Parser (Route -> a) a
+router devMode =
     P.oneOf
         [ P.map Home <| P.top
         , P.map (Login (App.Page.Login.init Nothing)) <| P.top </> P.s "login"
@@ -104,7 +104,7 @@ router =
         , P.map (DurakRoom Durak.Page.Room.init) <| P.top </> P.s "durak" </> P.string
 
         -- Yarnballs
-        , P.map (YarnballsRoom Yarnballs.Page.Room.init) <| P.top </> P.s "yarnballs"
+        , P.map (YarnballsRoom <| Yarnballs.Page.Room.init devMode) <| P.top </> P.s "yarnballs"
         ]
 
 
@@ -129,7 +129,7 @@ init flags url key =
 initAuth : Flags -> Url.Url -> ( AuthStatus, Cmd Msg )
 initAuth flags url =
     App.AuthStatus.init GotAuthStatusMsg
-        (case P.parse router url of
+        (case P.parse (router flags.devMode) url of
             Just (Login _) ->
                 Nothing
 
@@ -166,7 +166,7 @@ initModelFromAuth flags url key auth =
 
     -- Url Navigation
     , key = App.RoutingKey.init key
-    , route = updateRoute auth url
+    , route = updateRoute flags.devMode auth url
     }
 
 
@@ -226,7 +226,7 @@ update msg model =
                     ( model, Nav.load href )
 
         UrlChanged url ->
-            setupRoute model.route { model | route = updateRoute model.auth url }
+            setupRoute model.route { model | route = updateRoute model.devMode model.auth url }
 
         GotViewportWidth width ->
             ( { model | width = width }, Cmd.none )
@@ -344,7 +344,7 @@ update msg model =
         GotYarnballsPageRoomMsg subMsg ->
             case model.route of
                 Just (YarnballsRoom page) ->
-                    handlePageUpdateWithModel YarnballsRoom (Yarnballs.Page.Room.update GotYarnballsPageRoomMsg subMsg model page)
+                    handlePageUpdateWithModel YarnballsRoom (Yarnballs.Page.Room.update subMsg model page)
 
                 _ ->
                     ( model, Cmd.none )
@@ -365,15 +365,15 @@ handlePageUpdate toRoute model ( page, cmd ) =
     ( { model | route = Just (toRoute page) }, cmd )
 
 
-updateRoute : AuthStatus -> Url.Url -> Maybe Route
-updateRoute auth url =
+updateRoute : Bool -> AuthStatus -> Url.Url -> Maybe Route
+updateRoute devMode auth url =
     case App.AuthStatus.toUser auth of
         Just _ ->
-            P.parse router url
+            P.parse (router devMode) url
 
         Nothing ->
             (Just << Login << App.Page.Login.init) <|
-                case P.parse router url of
+                case P.parse (router devMode) url of
                     Just (Login _) ->
                         Nothing
 
