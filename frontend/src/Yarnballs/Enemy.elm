@@ -1,9 +1,11 @@
 module Yarnballs.Enemy exposing
     ( Enemies
     , decode
+    , height
     , init
     , loadTexture
     , render
+    , width
     )
 
 {-| This module renders enemies.
@@ -98,14 +100,11 @@ render tick enemies =
 renderOne : Float -> VT.Texture -> Enemy -> V.Renderable
 renderOne rotation texture enemy =
     let
-        dimensions =
-            VT.dimensions texture
-
         centerX =
-            dimensions.width * scale / 2 + enemy.x
+            width / 2 + enemy.x
 
         centerY =
-            dimensions.height * scale / 2 + enemy.y
+            height / 2 + enemy.y
     in
     V.group
         []
@@ -117,11 +116,21 @@ renderOne rotation texture enemy =
                 , VA.translate -(centerX / scale) -(centerY / scale)
                 ]
             ]
-            ( (centerX - dimensions.width / 2 * scale) / scale
-            , (centerY - dimensions.height / 2 * scale) / scale
+            ( (centerX - width / 2) / scale
+            , (centerY - height / 2) / scale
             )
             texture
         ]
+
+
+width : Float
+width =
+    256 * scale
+
+
+height : Float
+height =
+    width
 
 
 scale : Float

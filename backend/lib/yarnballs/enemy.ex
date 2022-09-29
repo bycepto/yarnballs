@@ -57,7 +57,7 @@ defmodule Yarnballs.Enemies do
       enemies.entities
       |> Enum.filter(fn enemy -> MapSet.member?(enemies.remove_ids, enemy.id) end)
       |> Enum.reduce(
-        enemies.explosions,
+        Explosions.update(enemies.explosions),
         fn enemy, explosions -> Explosions.spawn(explosions, enemy.x, enemy.y) end
       )
 

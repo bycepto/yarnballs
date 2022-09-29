@@ -18,14 +18,13 @@ import App.WebSocket exposing (WebSocket)
 import Browser.Events as BE
 import Canvas as V
 import Canvas.Texture as VT
-import Dict exposing (Dict)
 import Html as H
 import Html.Attributes as At
 import Json.Decode as D
 import Json.Decode.Pipeline as DP
 import Json.Encode as E
 import Keyboard as K
-import VitePluginHelper as VPH
+import Yarnballs.Boom exposing (Booms)
 import Yarnballs.Enemy exposing (Enemies)
 import Yarnballs.Missile exposing (Missiles)
 import Yarnballs.Ship exposing (Ships)
@@ -46,7 +45,7 @@ type alias Page =
     , ships : Ships
     , enemies : Enemies
     , missiles : Missiles
-    , explosions : Explosions
+    , booms : Booms
     }
 
 
@@ -101,20 +100,6 @@ type alias Entity a =
     }
 
 
-type alias Explosions =
-    { texture : Maybe VT.Texture
-    , entities : Dict String Explosion
-    }
-
-
-type alias Explosion =
-    { id : String
-    , x : Float
-    , y : Float
-    , startTick : Float
-    }
-
-
 handleEntityPhysicsWithFriction : Entity a -> Entity a
 handleEntityPhysicsWithFriction entity =
     { entity
@@ -149,25 +134,16 @@ setTextureOnce texture textured =
             textured
 
 
-init : Bool -> Page
-init devMode =
+init : Page
+init =
     { error = Nothing
     , tick = 0
     , pressedKeys = []
     , ships = Yarnballs.Ship.init
     , enemies = Yarnballs.Enemy.init
     , missiles = Yarnballs.Missile.init
-    , explosions = Explosions Nothing (initExplosion devMode)
+    , booms = Yarnballs.Boom.init
     }
-
-
-initExplosion : Bool -> Dict String Explosion
-initExplosion devMode =
-    if devMode then
-        Dict.fromList [ ( "abc", Explosion "abc" 50 50 100 ) ]
-
-    else
-        Dict.empty
 
 
 
@@ -186,7 +162,7 @@ type Msg
     | GotEnemy (Maybe VT.Texture)
     | GotShip (Maybe VT.Texture)
     | GotMissile (Maybe VT.Texture)
-    | GotExplosion (Maybe VT.Texture)
+    | GotBoom (Maybe VT.Texture)
     | Frame Float
 
 
@@ -240,8 +216,8 @@ update msg env page =
         GotMissile texture ->
             ( { page | missiles = setTextureOnce texture page.missiles }, Cmd.none, env )
 
-        GotExplosion texture ->
-            ( { page | explosions = setTextureOnce texture page.explosions }, Cmd.none, env )
+        GotBoom texture ->
+            ( { page | booms = setTextureOnce texture page.booms }, Cmd.none, env )
 
         Frame _ ->
             let
@@ -273,11 +249,6 @@ handleWebSocketMessage userId serialized page =
                             { page | error = Just (D.errorToString error) }
 
 
-handleWebSocketExplosionUpdate : List Explosion -> Explosions -> Explosions
-handleWebSocketExplosionUpdate serverExplosions explosions =
-    explosions
-
-
 decode : UserId -> Page -> D.Decoder Page
 decode userId page =
     D.map
@@ -291,7 +262,7 @@ handleDecoded page state =
         | error = Nothing
         , enemies = state.enemies
         , missiles = state.missiles
-        , explosions = handleWebSocketExplosionUpdate state.explosions page.explosions
+        , booms = state.booms
         , ships = state.ships
     }
 
@@ -301,7 +272,7 @@ type alias State =
     { enemies : Enemies
     , missiles : Missiles
     , ships : Ships
-    , explosions : List Explosion
+    , booms : Booms
     }
 
 
@@ -311,16 +282,7 @@ decodeState userId page =
         |> DP.requiredAt [ "state", "enemies", "entities" ] (Yarnballs.Enemy.decode page.enemies)
         |> DP.requiredAt [ "state", "missiles", "entities" ] (Yarnballs.Missile.decode page.missiles)
         |> DP.requiredAt [ "state", "ships", "entities" ] (Yarnballs.Ship.decode userId page.ships)
-        |> DP.requiredAt [ "state", "enemies", "explosions", "entities" ] (D.list <| decodeExplosion page.tick)
-
-
-decodeExplosion : Float -> D.Decoder Explosion
-decodeExplosion initTick =
-    D.succeed Explosion
-        |> DP.required "id" D.string
-        |> DP.required "x" D.float
-        |> DP.required "y" D.float
-        |> DP.hardcoded initTick
+        |> DP.requiredAt [ "state", "enemies", "explosions", "entities" ] (Yarnballs.Boom.decode page.tick page.booms)
 
 
 type ReceivedEvent
@@ -468,17 +430,21 @@ viewGame toMsg page =
     V.toHtmlWith
         { width = width
         , height = height
-        , textures =
-            [ Yarnballs.Enemy.loadTexture (toMsg << GotEnemy)
-            , Yarnballs.Ship.loadTexture (toMsg << GotShip)
-            , Yarnballs.Missile.loadTexture (toMsg << GotMissile)
-            , loadExplosion toMsg
-            ]
+        , textures = loadTextures toMsg
         }
         [ At.style "border" "10px solid rgba(0,0,0,0.1)"
         ]
     <|
         render page
+
+
+loadTextures : ToMsg msg -> List (VT.Source msg)
+loadTextures toMsg =
+    [ Yarnballs.Enemy.loadTexture (toMsg << GotEnemy)
+    , Yarnballs.Ship.loadTexture (toMsg << GotShip)
+    , Yarnballs.Missile.loadTexture (toMsg << GotMissile)
+    , Yarnballs.Boom.loadTexture (toMsg << GotBoom)
+    ]
 
 
 render : Page -> List V.Renderable
@@ -488,18 +454,8 @@ render page =
         , Yarnballs.Enemy.render page.tick page.enemies
         , Yarnballs.Missile.render page.missiles
         , Yarnballs.Ship.render page.ships
-        , renderExplosions page.tick page.explosions
+        , Yarnballs.Boom.render page.tick page.booms
         ]
-
-
-loadExplosion : ToMsg msg -> VT.Source msg
-loadExplosion toMsg =
-    VT.loadFromImageUrl srcExplosion (toMsg << GotExplosion)
-
-
-srcExplosion : String
-srcExplosion =
-    VPH.asset "/src/images/yarnballs/explosion_alpha.png"
 
 
 width : number
@@ -510,40 +466,3 @@ width =
 height : number
 height =
     480
-
-
-renderExplosions : Float -> Explosions -> List V.Renderable
-renderExplosions tick explosions =
-    case explosions.texture of
-        Nothing ->
-            []
-
-        Just texture ->
-            List.map (renderOneExplosion texture tick) (Dict.values explosions.entities)
-
-
-renderOneExplosion : VT.Texture -> Float -> Explosion -> V.Renderable
-renderOneExplosion texture tick explosion =
-    V.texture
-        []
-        ( explosion.x, explosion.y )
-        (explosionSprite texture tick explosion)
-
-
-explosionSprite : VT.Texture -> Float -> Explosion -> VT.Texture
-explosionSprite texture tick explosion =
-    VT.sprite
-        { x = max 0 (tick - explosion.startTick) * explosionWidth
-        , y = 0
-        , width = explosionWidth
-        , height = explosionHeight
-        }
-        texture
-
-
-explosionWidth =
-    128
-
-
-explosionHeight =
-    128
