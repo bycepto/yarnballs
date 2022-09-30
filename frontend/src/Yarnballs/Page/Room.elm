@@ -113,9 +113,14 @@ handleEntityPhysicsWithFriction entity =
 wrap : Entity a -> Entity a
 wrap entity =
     { entity
-        | x = toFloat <| modBy (round width) (round entity.x)
-        , y = toFloat <| modBy (round height) (round entity.y)
+        | x = wrapDim entity.x width (Yarnballs.Ship.width / 2)
+        , y = wrapDim entity.y height (Yarnballs.Ship.height / 2)
     }
+
+
+wrapDim : Float -> Float -> Float -> Float
+wrapDim value limit offset =
+    toFloat (modBy (round limit) (round (value + offset))) - offset
 
 
 type alias Textured a =
@@ -199,7 +204,11 @@ update msg env page =
             else
                 case K.anyKeyUpper rawKey of
                     Just K.Spacebar ->
-                        ( page, Yarnballs.Ship.fireShot topic page.ships, env )
+                        let
+                            ( ships, cmd ) =
+                                Yarnballs.Ship.fireShot topic page.tick page.ships
+                        in
+                        ( { page | ships = ships }, cmd, env )
 
                     _ ->
                         ( page, Cmd.none, env )

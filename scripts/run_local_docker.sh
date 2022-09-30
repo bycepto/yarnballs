@@ -8,7 +8,7 @@ sudo systemctl start docker.service
 # TODO: assumes only one key with `https` is set
 GITHUB_TOKEN="$(git config --global --list | grep https | sed 's/url.https:\/\/\(.*\?\)\@github.*/\1/')"
 
-tmux split-window -d "GITHUB_TOKEN=$GITHUB_TOKEN docker compose up"
+tmux split-window -d "GITHUB_TOKEN=$GITHUB_TOKEN docker compose up --build"
 tmux split-window -d "cd frontend && yarn start"
 tmux select-layout tiled
 

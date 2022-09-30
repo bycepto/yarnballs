@@ -26,7 +26,7 @@ defmodule Yarnballs.Enemies do
     }
   end
 
-  @limit 4
+  @limit 10
   @spawn_interval 1000
 
   def spawn(enemies) do
@@ -50,7 +50,7 @@ defmodule Yarnballs.Enemies do
   def update(enemies) do
     entities =
       enemies.entities
-      |> Enum.filter(fn enemy -> !MapSet.member?(enemies.remove_ids, enemy.id) end)
+      |> Enum.filter(fn enemy -> keep?(enemies, enemy) end)
       |> Enum.map(&Enemy.update/1)
 
     explosions =
@@ -62,6 +62,10 @@ defmodule Yarnballs.Enemies do
       )
 
     %{enemies | entities: entities, remove_ids: MapSet.new(), explosions: explosions}
+  end
+
+  def keep?(enemies, enemy) do
+    !MapSet.member?(enemies.remove_ids, enemy.id) && !Enemy.out_of_bounds?(enemy)
   end
 end
 
@@ -99,28 +103,54 @@ defmodule Yarnballs.Enemy do
 
   @width 640
   @height 480
+  @padding 50
 
-  @min_vel 25
-  @max_vel 75
+  @arc 50
+  @min_vel 50
+  @max_vel 100
 
   def spawn() do
+    {spawn_x, spawn_y} =
+      case Enum.random([:horizontal, :vertical]) do
+        :horizontal ->
+          {Enum.random([-@padding, @width + @padding]), Enum.random(0..@height)}
+
+        :vertical ->
+          {Enum.random(0..@width), Enum.random([-@padding, @height + @padding])}
+      end
+
+    center_x = @width / 2
+    center_y = @height / 2
+    angle_adjustment = :math.pi() * Enum.random(-@arc..@arc) / 180
+    angle = :math.atan2(center_y - spawn_y, center_x - spawn_x) + angle_adjustment
+    vel_x = Enum.random(@min_vel..@max_vel) * :math.cos(angle)
+    vel_y = Enum.random(@min_vel..@max_vel) * :math.sin(angle)
+
     %__MODULE__{
       id: Ecto.UUID.generate(),
       updated_at: Yarnballs.Utils.now_milliseconds(),
-      x: Enum.random(1..@width),
-      y: Enum.random(1..@height),
-      vel_x: Enum.random(@min_vel..@max_vel) * Enum.random([-1, 1]),
-      vel_y: Enum.random(@min_vel..@max_vel) * Enum.random([-1, 1])
+      x: spawn_x,
+      y: spawn_y,
+      vel_x: vel_x,
+      vel_y: vel_y
     }
   end
 
   def update(enemy) do
-    # update physics
     updated_at = Yarnballs.Utils.now_milliseconds()
     dt = updated_at - enemy.updated_at
-    x = Integer.mod(round(enemy.x + enemy.vel_x * (dt / 1000)), @width)
-    y = Integer.mod(round(enemy.y + enemy.vel_y * (dt / 1000)), @height)
+    x = enemy.x + enemy.vel_x * (dt / 1000)
+    y = enemy.y + enemy.vel_y * (dt / 1000)
 
     %{enemy | updated_at: updated_at, x: x, y: y}
+  end
+
+  @out_of_bounds 100
+
+  def out_of_bounds?(enemy) do
+    enemy.x < -@out_of_bounds ||
+      enemy.y < -@out_of_bounds ||
+      enemy.x > @width + @out_of_bounds ||
+      enemy.y > @height + @out_of_bounds
   end
 end

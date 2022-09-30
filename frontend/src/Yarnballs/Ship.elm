@@ -4,10 +4,12 @@ module Yarnballs.Ship exposing
     , fireShot
     , handleDecoded
     , handleKeyPresses
+    , height
     , init
     , loadTexture
     , move
     , render
+    , width
     )
 
 {-| This module renders all spaceships and exposes controls for the user's spaceship.
@@ -42,7 +44,7 @@ type alias Ships =
 
 init : Ships
 init =
-    { ship = UserShip 0 0 0 0 False 0
+    { ship = UserShip 0 0 0 0 False 0 -fireShotCooldownTicks
     , otherShips = []
     , texture = Nothing
     }
@@ -53,10 +55,9 @@ type alias UserShip =
     , y : Float
     , velX : Float
     , velY : Float
-
-    -- ship specific
     , thrusting : Bool
     , angle : Float
+    , lastFireTick : Float
     }
 
 
@@ -163,8 +164,24 @@ decodeAcceleration =
 -- UPDATE/WEBSOCKET
 
 
-fireShot : App.WebSocket.Topic -> Ships -> Cmd msg
-fireShot topic ships =
+fireShot : App.WebSocket.Topic -> Float -> Ships -> ( Ships, Cmd msg )
+fireShot topic tick ships =
+    if (tick - ships.ship.lastFireTick) > fireShotCooldownTicks then
+        ( { ships | ship = fireShotUpdateTick tick ships.ship }
+        , fireShotSend topic ships
+        )
+
+    else
+        ( ships, Cmd.none )
+
+
+fireShotUpdateTick : Float -> UserShip -> UserShip
+fireShotUpdateTick tick ship =
+    { ship | lastFireTick = tick }
+
+
+fireShotSend : App.WebSocket.Topic -> Ships -> Cmd msg
+fireShotSend topic ships =
     let
         ( x, y ) =
             fireShotInitPosition ships.ship
@@ -183,6 +200,11 @@ fireShot topic ships =
             , ( "vel_x", E.float velX )
             , ( "vel_y", E.float velY )
             ]
+
+
+fireShotCooldownTicks : Float
+fireShotCooldownTicks =
+    8
 
 
 fireShotInitPosition : UserShip -> ( Float, Float )
