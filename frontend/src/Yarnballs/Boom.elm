@@ -18,7 +18,6 @@ import Dict exposing (Dict)
 import Json.Decode as D
 import Json.Decode.Pipeline as DP
 import VitePluginHelper as VPH
-import Yarnballs.Enemy
 
 
 
@@ -35,6 +34,7 @@ type alias Boom =
     { id : String
     , x : Float
     , y : Float
+    , size : Float
     , startTick : Float
     }
 
@@ -94,6 +94,7 @@ decodeBoom initTick =
         |> DP.required "id" D.string
         |> DP.required "x" D.float
         |> DP.required "y" D.float
+        |> DP.required "size" D.float
         |> DP.hardcoded initTick
 
 
@@ -116,10 +117,8 @@ renderOneBoom texture tick boom =
     V.texture
         [ VA.transform
             [ VA.translate
-                -- TODO: since other entities can explose, how can this method
-                -- take the exploding entity's width and height?
-                ((Yarnballs.Enemy.width - width) / 2)
-                ((Yarnballs.Enemy.height - height) / 2)
+                ((boom.size - width) / 2)
+                ((boom.size - height) / 2)
             ]
         ]
         ( boom.x, boom.y )

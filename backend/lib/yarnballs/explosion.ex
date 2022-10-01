@@ -16,8 +16,8 @@ defmodule Yarnballs.Explosions do
     %__MODULE__{entities: []}
   end
 
-  def spawn(explosions, x, y) do
-    %{explosions | entities: [Explosion.spawn(x, y) | explosions.entities]}
+  def spawn(explosions, thing) do
+    %{explosions | entities: [Explosion.spawn(thing) | explosions.entities]}
   end
 
   def update(explosions) do
@@ -39,12 +39,16 @@ defmodule Yarnballs.Explosion do
   Represent an explosion.
   """
   require Logger
+  alias Yarnballs.Enemy
+  alias Yarnballs.Enemy.Rock
+  alias Yarnballs.Collidable
 
   @type t :: %__MODULE__{
           id: binary,
           updated_at: integer,
           x: float,
           y: float,
+          size: float,
           lifespan: integer
         }
 
@@ -53,6 +57,8 @@ defmodule Yarnballs.Explosion do
     :updated_at,
     :x,
     :y,
+    # the size of the thing that is exploding - used to determine scale.
+    :size,
     :lifespan
   ]
   @derive {Jason.Encoder, only: @enforce_keys}
@@ -60,12 +66,27 @@ defmodule Yarnballs.Explosion do
 
   @lifespan 1000
 
-  def spawn(x, y) do
+  # TODO: consider making this a protocol?
+  def spawn(thing) do
+    {x, y, size} =
+      case thing do
+        # TODO: don't rely on collidable protocol / radius for size since it's indirect
+        %Enemy{} ->
+          {thing.x, thing.y, Collidable.radius(thing) * 2}
+
+        %Rock{} ->
+          {thing.x, thing.y, Collidable.radius(thing) * 2}
+
+        _ ->
+          raise "cannot spawn explosion for #{thing}"
+      end
+
     %__MODULE__{
       id: Ecto.UUID.generate(),
       updated_at: Yarnballs.Utils.now_milliseconds(),
       x: x,
       y: y,
+      size: size,
       lifespan: @lifespan
     }
   end

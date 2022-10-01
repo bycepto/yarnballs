@@ -6,6 +6,7 @@ defmodule Yarnballs.State do
 
   alias Yarnballs.Missiles
   alias Yarnballs.PlayerShips
+  alias Yarnballs.PlayerShip
   alias Yarnballs.Enemies
   alias Yarnballs.Collider
 
@@ -37,8 +38,8 @@ defmodule Yarnballs.State do
     %{state | ships: PlayerShips.move(state.ships, id, x, y, angle, thrusting)}
   end
 
-  def spawn_missile(state, x, y, vel_x, vel_y) do
-    %{state | missiles: Missiles.spawn(state.missiles, x, y, vel_x, vel_y)}
+  def spawn_missile(state, x, y, vel_x, vel_y, dead) do
+    %{state | missiles: Missiles.spawn(state.missiles, x, y, vel_x, vel_y, dead)}
   end
 
   def spawn_enemies(state) do
@@ -52,7 +53,6 @@ defmodule Yarnballs.State do
   end
 
   @collision_update_interval 100
-  @bounce_velocity 10
 
   defp update_collisions(state) do
     collisions_updated_at = Yarnballs.Utils.now_milliseconds()
@@ -62,7 +62,8 @@ defmodule Yarnballs.State do
       {enemy_ids, missile_ids} =
         for e <- state.enemies.entities,
             m <- state.missiles.entities,
-            enemy_missile_collision?(e, m) do
+            enemy_missile_collision?(e, m),
+            !m.dead do
           {e.id, m.id}
         end
         |> Enum.unzip()
@@ -70,20 +71,13 @@ defmodule Yarnballs.State do
       ships =
         for e <- state.enemies.entities,
             p <- PlayerShips.entities(state.ships),
-            enemy_player_collision?(e, p) do
-          dy = e.y - p.y
-          dx = e.x - p.x
-          new_angle = :math.atan2(dy, dx) + :math.pi()
-
-          vel_x = @bounce_velocity * :math.cos(new_angle)
-          vel_y = @bounce_velocity * :math.sin(new_angle)
-          {p.id, vel_x, vel_y}
+            enemy_player_collision?(e, p),
+            !PlayerShip.dead?(p) do
+          {p, e}
         end
         |> Enum.reduce(
           state.ships,
-          fn {id, vel_x, vel_y}, ships ->
-            PlayerShips.accelerate(ships, id, vel_x, vel_y)
-          end
+          fn {p, e}, ships -> PlayerShips.collide_with(ships, p.id, e) end
         )
 
       %{
@@ -110,7 +104,8 @@ defmodule Yarnballs.State do
     %{
       state
       | missiles: Missiles.update(state.missiles),
-        enemies: Enemies.update(state.enemies)
+        enemies: Enemies.update(state.enemies),
+        ships: PlayerShips.update(state.ships)
     }
   end
 end

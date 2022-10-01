@@ -164,7 +164,8 @@ type Msg
     | GotWebSocketMessage E.Value
     | GotKeyPress K.Msg
     | GotKeyDown K.RawKey
-    | GotEnemy (Maybe VT.Texture)
+    | GotBouncer (Maybe VT.Texture)
+    | GotRock (Maybe VT.Texture)
     | GotShip (Maybe VT.Texture)
     | GotMissile (Maybe VT.Texture)
     | GotBoom (Maybe VT.Texture)
@@ -213,8 +214,25 @@ update msg env page =
                     _ ->
                         ( page, Cmd.none, env )
 
-        GotEnemy texture ->
-            ( { page | enemies = setTextureOnce texture page.enemies }, Cmd.none, env )
+        GotBouncer texture ->
+            let
+                enemies =
+                    page.enemies
+            in
+            ( { page | enemies = { enemies | bouncerTexture = texture } }
+            , Cmd.none
+            , env
+            )
+
+        GotRock texture ->
+            let
+                enemies =
+                    page.enemies
+            in
+            ( { page | enemies = { enemies | rockTexture = texture } }
+            , Cmd.none
+            , env
+            )
 
         GotShip texture ->
             ( { page | ships = setTextureOnce texture page.ships }
@@ -288,7 +306,7 @@ type alias State =
 decodeState : UserId -> Page -> D.Decoder State
 decodeState userId page =
     D.succeed State
-        |> DP.requiredAt [ "state", "enemies", "entities" ] (Yarnballs.Enemy.decode page.enemies)
+        |> DP.requiredAt [ "state", "enemies" ] (Yarnballs.Enemy.decode page.enemies)
         |> DP.requiredAt [ "state", "missiles", "entities" ] (Yarnballs.Missile.decode page.missiles)
         |> DP.requiredAt [ "state", "ships", "entities" ] (Yarnballs.Ship.decode userId page.ships)
         |> DP.requiredAt [ "state", "enemies", "explosions", "entities" ] (Yarnballs.Boom.decode page.tick page.booms)
@@ -415,9 +433,27 @@ viewBody toMsg env page =
                     , At.style "width" "100%"
                     , At.style "height" "100%"
                     ]
-                    [ viewGame toMsg page
+                    [ viewStats page.enemies
+                    , viewGame toMsg page
                     , viewCredits
                     ]
+
+
+viewStats : Enemies -> H.Html msg
+viewStats enemies =
+    H.div
+        [ -- flex
+          At.style "display" "flex"
+        , At.style "flex-direction" "column"
+        , At.style "justify-content" "center"
+        , At.style "align-items" "center"
+        , At.style "row-gap" "1em"
+        ]
+        [ H.div [] [ H.text "destroyed" ]
+        , H.div [] [ H.text <| String.fromInt enemies.destroyed ]
+        , H.div [] [ H.text "spawned" ]
+        , H.div [] [ H.text <| String.fromInt enemies.spawned ]
+        ]
 
 
 viewCredits : H.Html msg
@@ -425,7 +461,7 @@ viewCredits =
     H.div
         []
         [ H.div [ At.style "font-weight" "bold" ] [ H.text "Artwork credits" ]
-        , H.div [] [ H.text "Kim Lathrop (ship and missiles)" ]
+        , H.div [] [ H.text "Kim Lathrop (ship, missiles, explosions)" ]
         , H.div
             []
             [ H.a [ At.href "http://robsonbillponte666.deviantart.com" ] [ H.text "Rob" ]
@@ -449,7 +485,8 @@ viewGame toMsg page =
 
 loadTextures : ToMsg msg -> List (VT.Source msg)
 loadTextures toMsg =
-    [ Yarnballs.Enemy.loadTexture (toMsg << GotEnemy)
+    [ Yarnballs.Enemy.loadBouncerTexture (toMsg << GotBouncer)
+    , Yarnballs.Enemy.loadRockTexture (toMsg << GotRock)
     , Yarnballs.Ship.loadTexture (toMsg << GotShip)
     , Yarnballs.Missile.loadTexture (toMsg << GotMissile)
     , Yarnballs.Boom.loadTexture (toMsg << GotBoom)

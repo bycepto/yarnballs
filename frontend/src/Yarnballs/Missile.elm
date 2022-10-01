@@ -10,6 +10,7 @@ module Yarnballs.Missile exposing
 -}
 
 import Canvas as V
+import Canvas.Settings.Advanced as VA
 import Canvas.Texture as VT
 import Json.Decode as D
 import Json.Decode.Pipeline as DP
@@ -31,6 +32,7 @@ type alias Missile =
     , y : Float
     , velX : Float
     , velY : Float
+    , dead : Bool
     }
 
 
@@ -72,6 +74,7 @@ decodeMissile =
         |> DP.required "y" D.float
         |> DP.required "vel_x" D.float
         |> DP.required "vel_y" D.float
+        |> DP.required "dead" D.bool
 
 
 
@@ -92,4 +95,13 @@ render missiles =
 
 renderOne : VT.Texture -> Missile -> V.Renderable
 renderOne texture shot =
-    V.texture [] ( shot.x, shot.y ) texture
+    V.texture
+        [ VA.alpha <|
+            if shot.dead then
+                0.3
+
+            else
+                1
+        ]
+        ( shot.x, shot.y )
+        texture

@@ -17,8 +17,9 @@ defmodule Yarnballs.Missiles do
     %__MODULE__{entities: [], remove_ids: MapSet.new()}
   end
 
-  def spawn(missiles, x, y, vel_x, vel_y) do
-    %{missiles | entities: [Missile.spawn(x, y, vel_x, vel_y) | missiles.entities]}
+  def spawn(missiles, x, y, vel_x, vel_y, dead) do
+    missile = Missile.spawn(x, y, vel_x, vel_y, dead)
+    %{missiles | entities: [missile | missiles.entities]}
   end
 
   def remove(missiles, ids) do
@@ -52,7 +53,8 @@ defmodule Yarnballs.Missile do
           y: float,
           vel_x: float,
           vel_y: float,
-          lifespan: integer
+          lifespan: integer,
+          dead: boolean
         }
 
   @enforce_keys [
@@ -62,7 +64,8 @@ defmodule Yarnballs.Missile do
     :y,
     :vel_x,
     :vel_y,
-    :lifespan
+    :lifespan,
+    :dead
   ]
   @derive {Jason.Encoder, only: @enforce_keys}
   defstruct @enforce_keys
@@ -74,7 +77,7 @@ defmodule Yarnballs.Missile do
 
   @lifespan 1000
 
-  def spawn(x, y, vel_x, vel_y) do
+  def spawn(x, y, vel_x, vel_y, dead) do
     %__MODULE__{
       id: Ecto.UUID.generate(),
       updated_at: Yarnballs.Utils.now_milliseconds(),
@@ -82,7 +85,8 @@ defmodule Yarnballs.Missile do
       y: y,
       vel_x: vel_x,
       vel_y: vel_y,
-      lifespan: @lifespan
+      lifespan: @lifespan,
+      dead: dead
     }
   end
 

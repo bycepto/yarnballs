@@ -44,7 +44,7 @@ type alias Ships =
 
 init : Ships
 init =
-    { ship = UserShip 0 0 0 0 False 0 -fireShotCooldownTicks
+    { ship = UserShip 0 0 0 0 False 0 -fireShotCooldownTicks 0
     , otherShips = []
     , texture = Nothing
     }
@@ -58,6 +58,7 @@ type alias UserShip =
     , thrusting : Bool
     , angle : Float
     , lastFireTick : Float
+    , health : Float
     }
 
 
@@ -80,6 +81,11 @@ imageSource =
     VPH.asset "/src/images/yarnballs/double_ship.png"
 
 
+dead : { a | health : Float } -> Bool
+dead ship =
+    ship.health <= 0
+
+
 
 -- DECODE
 
@@ -89,19 +95,19 @@ decode userId ships =
     D.map2
         (handleDecoded ships)
         (decodeOtherShips userId)
-        (decodeUserAcceleration userId)
+        (decodePartialUserShip userId)
 
 
-handleDecoded : Ships -> List OtherShip -> Maybe Acceleration -> Ships
-handleDecoded ships otherShips maybeAcceleration =
+handleDecoded : Ships -> List OtherShip -> Maybe PartialUserShip -> Ships
+handleDecoded ships otherShips partialUserShip =
     { ships
         | otherShips = otherShips
         , ship =
-            case maybeAcceleration of
+            case partialUserShip of
                 Nothing ->
                     ships.ship
 
-                Just { velX, velY } ->
+                Just { velX, velY, health } ->
                     let
                         ship =
                             ships.ship
@@ -109,6 +115,7 @@ handleDecoded ships otherShips maybeAcceleration =
                     { ship
                         | velX = ship.velX + velX
                         , velY = ship.velY + velY
+                        , health = health
                     }
     }
 
@@ -134,14 +141,15 @@ decodeOtherShip =
         |> DP.required "thrusting" D.bool
 
 
-type alias Acceleration =
+type alias PartialUserShip =
     { velX : Float
     , velY : Float
+    , health : Float
     }
 
 
-decodeUserAcceleration : UserId -> D.Decoder (Maybe Acceleration)
-decodeUserAcceleration userId =
+decodePartialUserShip : UserId -> D.Decoder (Maybe PartialUserShip)
+decodePartialUserShip userId =
     D.map
         (\acc_by_id ->
             acc_by_id
@@ -149,15 +157,15 @@ decodeUserAcceleration userId =
                 |> Dict.values
                 |> List.head
         )
-        (D.dict decodeAcceleration)
+        (D.dict decodePartialShip)
 
 
-decodeAcceleration : D.Decoder Acceleration
-decodeAcceleration =
-    D.map2
-        (\velX velY -> { velX = velX, velY = velY })
-        (D.field "vel_x" D.float)
-        (D.field "vel_y" D.float)
+decodePartialShip : D.Decoder PartialUserShip
+decodePartialShip =
+    D.succeed PartialUserShip
+        |> DP.required "vel_x" D.float
+        |> DP.required "vel_y" D.float
+        |> DP.required "health" D.float
 
 
 
@@ -199,6 +207,7 @@ fireShotSend topic ships =
             , ( "y", E.float y )
             , ( "vel_x", E.float velX )
             , ( "vel_y", E.float velY )
+            , ( "dead", E.bool <| dead ships.ship )
             ]
 
 
@@ -343,10 +352,30 @@ renderUserShip texture ship =
                 , VA.rotate ship.angle
                 , VA.translate -centerX -centerY
                 ]
+            , VA.alpha <|
+                if dead ship then
+                    0.3
+
+                else
+                    1
             ]
             ( ship.x, ship.y )
             sprite
+        , renderUserHealth ship
         ]
+
+
+renderUserHealth : UserShip -> V.Renderable
+renderUserHealth ship =
+    V.text
+        []
+        ( ship.x, ship.y )
+    <|
+        if dead ship then
+            "dead"
+
+        else
+            String.fromFloat ship.health
 
 
 renderOtherShips : VT.Texture -> List OtherShip -> List V.Renderable

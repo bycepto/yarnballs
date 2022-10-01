@@ -23,8 +23,12 @@ defmodule GgyoWeb.YarnballsChannel do
     {:noreply, socket}
   end
 
-  def handle_in("fired_shot", %{"x" => x, "y" => y, "vel_x" => vel_x, "vel_y" => vel_y}, socket) do
-    Ggyo.Yarnballs.GameLoop.fire_missile(x, y, vel_x, vel_y)
+  def handle_in(
+        "fired_shot",
+        %{"x" => x, "y" => y, "vel_x" => vel_x, "vel_y" => vel_y, "dead" => dead},
+        socket
+      ) do
+    Ggyo.Yarnballs.GameLoop.fire_missile(x, y, vel_x, vel_y, dead)
     {:noreply, socket}
   end
 end

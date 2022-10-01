@@ -21,8 +21,8 @@ defmodule Ggyo.Yarnballs.GameLoop do
     GenServer.cast(:game_loop, {:move_ship, id, x, y, angle, thrusting})
   end
 
-  def fire_missile(x, y, vel_x, vel_y) do
-    GenServer.cast(:game_loop, {:fire_missile, x, y, vel_x, vel_y})
+  def fire_missile(x, y, vel_x, vel_y, dead) do
+    GenServer.cast(:game_loop, {:fire_missile, x, y, vel_x, vel_y, dead})
   end
 
   @impl true
@@ -45,8 +45,8 @@ defmodule Ggyo.Yarnballs.GameLoop do
   end
 
   @impl true
-  def handle_cast({:fire_missile, x, y, vel_x, vel_y}, state) do
-    {:noreply, State.spawn_missile(state, x, y, vel_x, vel_y)}
+  def handle_cast({:fire_missile, x, y, vel_x, vel_y, dead}, state) do
+    {:noreply, State.spawn_missile(state, x, y, vel_x, vel_y, dead)}
   end
 
   @impl true

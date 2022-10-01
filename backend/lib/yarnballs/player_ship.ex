@@ -5,16 +5,15 @@ defmodule Yarnballs.PlayerShips do
   alias Yarnballs.PlayerShip
 
   @type t :: %__MODULE__{
-          entities: %{binary => PlayerShip.t()},
-          remove_ids: MapSet.t(binary)
+          entities: %{binary => PlayerShip.t()}
         }
 
-  @enforce_keys [:entities, :remove_ids]
+  @enforce_keys [:entities]
   @derive {Jason.Encoder, only: [:entities]}
   defstruct @enforce_keys
 
   def init() do
-    %__MODULE__{entities: %{}, remove_ids: MapSet.new()}
+    %__MODULE__{entities: %{}}
   end
 
   def entities(players) do
@@ -37,15 +36,13 @@ defmodule Yarnballs.PlayerShips do
     %{players | entities: entities}
   end
 
-  def remove(players, ids) do
-    %{players | remove_ids: MapSet.union(players.remove_ids, MapSet.new(ids))}
-  end
-
-  def accelerate(players, id, vel_x, vel_y) do
+  def collide_with(players, id, thing) do
     entities =
-      Map.update!(players.entities, id, fn ship ->
-        %{ship | vel_x: vel_x, vel_y: vel_y}
-      end)
+      Map.update!(
+        players.entities,
+        id,
+        fn ship -> PlayerShip.collide_with(ship, thing) end
+      )
 
     %{players | entities: entities}
   end
@@ -53,14 +50,10 @@ defmodule Yarnballs.PlayerShips do
   def update(players) do
     entities =
       players.entities
-      |> Enum.filter(fn {k, p} -> {k, keep_player?(players, p)} end)
-      |> Enum.into({})
+      |> Enum.map(fn {id, player} -> {id, PlayerShip.update(player)} end)
+      |> Enum.into(%{})
 
-    %{players | entities: entities, remove_ids: MapSet.new()}
-  end
-
-  defp keep_player?(players, player) do
-    !MapSet.member?(players.remove_ids, player.id)
+    %{players | entities: entities}
   end
 end
 
@@ -69,6 +62,8 @@ defmodule Yarnballs.PlayerShip do
   Represent ships operated by players.
   """
   require Logger
+  alias Yarnballs.Enemy
+  alias Yarnballs.Enemy.Rock
 
   @type t :: %__MODULE__{
           id: binary,
@@ -77,7 +72,9 @@ defmodule Yarnballs.PlayerShip do
           vel_x: float,
           vel_y: float,
           angle: float,
-          thrusting: boolean
+          thrusting: boolean,
+          health: float,
+          destroyed_at: float | nil
         }
   @enforce_keys [
     :id,
@@ -86,7 +83,9 @@ defmodule Yarnballs.PlayerShip do
     :vel_x,
     :vel_y,
     :angle,
-    :thrusting
+    :thrusting,
+    :health,
+    :destroyed_at
   ]
   @derive {Jason.Encoder, only: @enforce_keys}
   defstruct @enforce_keys
@@ -96,6 +95,8 @@ defmodule Yarnballs.PlayerShip do
     def radius(_), do: 45.0
   end
 
+  @health 100
+
   def spawn(id) do
     %__MODULE__{
       id: id,
@@ -104,7 +105,65 @@ defmodule Yarnballs.PlayerShip do
       vel_x: 0,
       vel_y: 0,
       angle: 0,
-      thrusting: false
+      thrusting: false,
+      health: @health,
+      destroyed_at: nil
     }
+  end
+
+  @bouncer_repel_velocity 10
+  @rock_repel_velocity 2
+  @rock_damage 5
+
+  def collide_with(player, thing) do
+    # TODO: check collision and guard?
+
+    # TODO: consider making this a protocol
+    case thing do
+      %Enemy{} ->
+        new_angle = repel_angle(player, thing)
+        vel_x = @bouncer_repel_velocity * :math.cos(new_angle)
+        vel_y = @bouncer_repel_velocity * :math.sin(new_angle)
+        %{player | vel_x: vel_x, vel_y: vel_y}
+
+      %Rock{} ->
+        new_angle = repel_angle(player, thing)
+        vel_x = @rock_repel_velocity * :math.cos(new_angle)
+        vel_y = @rock_repel_velocity * :math.sin(new_angle)
+        %{player | health: player.health - @rock_damage, vel_x: vel_x, vel_y: vel_y}
+
+      _ ->
+        raise "cannot collide with #{thing}"
+    end
+  end
+
+  @respawn_delay 10_000
+
+  def update(player) do
+    cond do
+      dead?(player) ->
+        dt = Yarnballs.Utils.now_milliseconds() - player.destroyed_at
+
+        if dt > @respawn_delay do
+          # respawn
+          %{player | destroyed_at: nil, health: @health}
+        else
+          player
+        end
+
+      player.health <= 0 ->
+        %{player | destroyed_at: Yarnballs.Utils.now_milliseconds()}
+
+      true ->
+        player
+    end
+  end
+
+  def dead?(player), do: player.destroyed_at != nil
+
+  defp repel_angle(player, %{x: x, y: y}) do
+    dy = y - player.y
+    dx = x - player.x
+    :math.atan2(dy, dx) + :math.pi()
   end
 end

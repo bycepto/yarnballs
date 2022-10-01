@@ -3,7 +3,8 @@ module Yarnballs.Enemy exposing
     , decode
     , height
     , init
-    , loadTexture
+    , loadBouncerTexture
+    , loadRockTexture
     , render
     , width
     )
@@ -24,12 +25,20 @@ import VitePluginHelper as VPH
 
 
 type alias Enemies =
-    { texture : Maybe VT.Texture
+    { bouncerTexture : Maybe VT.Texture
+    , rockTexture : Maybe VT.Texture
     , entities : List Enemy
+    , spawned : Int
+    , destroyed : Int
     }
 
 
-type alias Enemy =
+type Enemy
+    = Bouncer EnemyData
+    | Rock EnemyData
+
+
+type alias EnemyData =
     { id : String
     , x : Float
     , y : Float
@@ -40,17 +49,31 @@ type alias Enemy =
 
 init : Enemies
 init =
-    Enemies Nothing []
+    Enemies Nothing Nothing [] 0 0
 
 
-loadTexture : (Maybe VT.Texture -> msg) -> VT.Source msg
-loadTexture =
-    VT.loadFromImageUrl imageSource
+loadBouncerTexture : (Maybe VT.Texture -> msg) -> VT.Source msg
+loadBouncerTexture =
+    VT.loadFromImageUrl (VPH.asset "/src/images/yarnballs/yarn_ball_256x256.png")
 
 
-imageSource : String
-imageSource =
-    VPH.asset "/src/images/yarnballs/yarn_ball_256x256.png"
+loadRockTexture : (Maybe VT.Texture -> msg) -> VT.Source msg
+loadRockTexture =
+    VT.loadFromImageUrl (VPH.asset "/src/images/yarnballs/asteroid_blue.png")
+
+
+type alias EnemyTextures =
+    { rock : VT.Texture, bouncer : VT.Texture }
+
+
+getTextures : Enemies -> Maybe EnemyTextures
+getTextures enemies =
+    case ( enemies.rockTexture, enemies.bouncerTexture ) of
+        ( Just rock, Just bouncer ) ->
+            Just { rock = rock, bouncer = bouncer }
+
+        _ ->
+            Nothing
 
 
 
@@ -58,20 +81,41 @@ imageSource =
 
 
 decode : Enemies -> D.Decoder Enemies
-decode missiles =
-    D.map
-        (handleDecoded missiles)
-        (D.list decodeEnemy)
+decode enemies =
+    D.map3
+        (handleDecoded enemies)
+        (D.field "spawned_count" D.int)
+        (D.field "destroyed_count" D.int)
+        (D.field "entities" <| D.list decodeEnemy)
 
 
-handleDecoded : Enemies -> List Enemy -> Enemies
-handleDecoded enemies decoded =
-    { enemies | entities = decoded }
+handleDecoded : Enemies -> Int -> Int -> List Enemy -> Enemies
+handleDecoded enemies spawned destroyed decoded =
+    { enemies | entities = decoded, spawned = spawned, destroyed = destroyed }
 
 
 decodeEnemy : D.Decoder Enemy
 decodeEnemy =
-    D.succeed Enemy
+    D.field "kind" D.string
+        |> D.andThen decodeByKind
+
+
+decodeByKind : String -> D.Decoder Enemy
+decodeByKind kind =
+    case kind of
+        "bouncer" ->
+            D.map Bouncer decodeEnemyData
+
+        "rock" ->
+            D.map Rock decodeEnemyData
+
+        _ ->
+            D.fail <| "unknown kind \"" ++ kind ++ "\""
+
+
+decodeEnemyData : D.Decoder EnemyData
+decodeEnemyData =
+    D.succeed EnemyData
         |> DP.required "id" D.string
         |> DP.required "x" D.float
         |> DP.required "y" D.float
@@ -89,53 +133,98 @@ render tick enemies =
         rotation =
             degrees (tick * degreesPerTick)
     in
-    case enemies.texture of
+    case getTextures enemies of
         Nothing ->
             []
 
-        Just texture ->
-            enemies.entities |> List.map (renderOne rotation texture)
+        Just textures ->
+            enemies.entities |> List.map (renderOne rotation textures)
 
 
-renderOne : Float -> VT.Texture -> Enemy -> V.Renderable
-renderOne rotation texture enemy =
+renderOne : Float -> EnemyTextures -> Enemy -> V.Renderable
+renderOne rotation textures enemy =
     let
         centerX =
-            width / 2 + enemy.x
+            (width enemy / 2) + getX enemy
 
         centerY =
-            height / 2 + enemy.y
+            (height enemy / 2) + getY enemy
     in
     V.group
         []
         [ V.texture
             [ VA.transform
-                [ VA.scale scale scale
-                , VA.translate (centerX / scale) (centerY / scale)
+                [ VA.scale (scale enemy) (scale enemy)
+                , VA.translate (centerX / scale enemy) (centerY / scale enemy)
                 , VA.rotate rotation
-                , VA.translate -(centerX / scale) -(centerY / scale)
+                , VA.translate -(centerX / scale enemy) -(centerY / scale enemy)
                 ]
             ]
-            ( (centerX - width / 2) / scale
-            , (centerY - height / 2) / scale
+            ( (centerX - width enemy / 2) / scale enemy
+            , (centerY - height enemy / 2) / scale enemy
             )
-            texture
+            (getTexture textures enemy)
         ]
 
 
-width : Float
-width =
-    256 * scale
+getX : Enemy -> Float
+getX enemy =
+    case enemy of
+        Bouncer { x } ->
+            x
+
+        Rock { x } ->
+            x
 
 
-height : Float
-height =
-    width
+getY : Enemy -> Float
+getY enemy =
+    case enemy of
+        Bouncer { y } ->
+            y
+
+        Rock { y } ->
+            y
 
 
-scale : Float
-scale =
-    0.3
+width : Enemy -> Float
+width enemy =
+    case enemy of
+        Bouncer _ ->
+            256 * scale enemy
+
+        Rock _ ->
+            90
+
+
+height : Enemy -> Float
+height enemy =
+    case enemy of
+        Bouncer _ ->
+            width enemy
+
+        Rock _ ->
+            width enemy
+
+
+scale : Enemy -> Float
+scale enemy =
+    case enemy of
+        Bouncer _ ->
+            0.3
+
+        Rock _ ->
+            1
+
+
+getTexture : EnemyTextures -> Enemy -> VT.Texture
+getTexture textures enemy =
+    case enemy of
+        Bouncer _ ->
+            textures.bouncer
+
+        Rock _ ->
+            textures.rock
 
 
 degreesPerTick : Float
