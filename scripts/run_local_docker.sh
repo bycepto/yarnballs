@@ -3,7 +3,7 @@
 trap "docker compose down && tmux kill-pane -a && exit 0 || exit 1" INT
 
 # TODO: assumes docker is managed by systemctl
-sudo systemctl start docker.service
+docker ps -q || sudo systemctl start docker.service
 
 # TODO: assumes only one key with `https` is set
 GITHUB_TOKEN="$(git config --global --list | grep https | sed 's/url.https:\/\/\(.*\?\)\@github.*/\1/')"
