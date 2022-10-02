@@ -18,6 +18,7 @@ import App.WebSocket exposing (WebSocket)
 import Browser.Events as BE
 import Canvas as V
 import Canvas.Texture as VT
+import Dict exposing (Dict)
 import Html as H
 import Html.Attributes as At
 import Json.Decode as D
@@ -46,6 +47,9 @@ type alias Page =
     , enemies : Enemies
     , missiles : Missiles
     , booms : Booms
+
+    -- stats
+    , scores : Scores
     }
 
 
@@ -148,7 +152,17 @@ init =
     , enemies = Yarnballs.Enemy.init
     , missiles = Yarnballs.Missile.init
     , booms = Yarnballs.Boom.init
+    , scores = Dict.empty
     }
+
+
+type alias Scores =
+    Dict String Int
+
+
+totalScore : Scores -> Int
+totalScore scores =
+    List.sum <| Dict.values scores
 
 
 
@@ -291,6 +305,7 @@ handleDecoded page state =
         , missiles = state.missiles
         , booms = state.booms
         , ships = state.ships
+        , scores = state.scores
     }
 
 
@@ -300,6 +315,7 @@ type alias State =
     , missiles : Missiles
     , ships : Ships
     , booms : Booms
+    , scores : Scores
     }
 
 
@@ -310,6 +326,12 @@ decodeState userId page =
         |> DP.requiredAt [ "state", "missiles", "entities" ] (Yarnballs.Missile.decode page.missiles)
         |> DP.requiredAt [ "state", "ships", "entities" ] (Yarnballs.Ship.decode userId page.ships)
         |> DP.requiredAt [ "state", "enemies", "explosions", "entities" ] (Yarnballs.Boom.decode page.tick page.booms)
+        |> DP.requiredAt [ "state", "score_by_ship" ] decodeScores
+
+
+decodeScores : D.Decoder Scores
+decodeScores =
+    D.dict D.int
 
 
 type ReceivedEvent
@@ -432,15 +454,18 @@ viewBody toMsg env page =
                     -- size
                     , At.style "width" "100%"
                     , At.style "height" "100%"
+
+                    -- prevent scrolling
+                    , At.style "overflow-x" "hidden"
                     ]
-                    [ viewStats page.enemies
+                    [ viewStats page.scores
                     , viewGame toMsg page
                     , viewCredits
                     ]
 
 
-viewStats : Enemies -> H.Html msg
-viewStats enemies =
+viewStats : Scores -> H.Html msg
+viewStats scores =
     H.div
         [ -- flex
           At.style "display" "flex"
@@ -449,10 +474,8 @@ viewStats enemies =
         , At.style "align-items" "center"
         , At.style "row-gap" "1em"
         ]
-        [ H.div [] [ H.text "destroyed" ]
-        , H.div [] [ H.text <| String.fromInt enemies.destroyed ]
-        , H.div [] [ H.text "spawned" ]
-        , H.div [] [ H.text <| String.fromInt enemies.spawned ]
+        [ H.div [] [ H.text "score" ]
+        , H.div [] [ H.text <| String.fromInt <| totalScore scores ]
         ]
 
 
@@ -461,12 +484,11 @@ viewCredits =
     H.div
         []
         [ H.div [ At.style "font-weight" "bold" ] [ H.text "Artwork credits" ]
-        , H.div [] [ H.text "Kim Lathrop (ship, missiles, explosions)" ]
-        , H.div
-            []
-            [ H.a [ At.href "http://robsonbillponte666.deviantart.com" ] [ H.text "Rob" ]
-            , H.text " (yarn balls)"
-            ]
+        , H.div [] [ H.text "Kim Lathrop" ]
+        , H.div [] [ H.text "(ship, rocks, missiles, explosions)" ]
+        , H.div [] [ H.text "---" ]
+        , H.div [] [ H.a [ At.href "http://robsonbillponte666.deviantart.com" ] [ H.text "Rob" ] ]
+        , H.div [] [ H.text "(yarn balls)" ]
         ]
 
 

@@ -17,8 +17,8 @@ defmodule Yarnballs.Missiles do
     %__MODULE__{entities: [], remove_ids: MapSet.new()}
   end
 
-  def spawn(missiles, x, y, vel_x, vel_y, dead) do
-    missile = Missile.spawn(x, y, vel_x, vel_y, dead)
+  def spawn(missiles, shooter_id, x, y, vel_x, vel_y, dead) do
+    missile = Missile.spawn(shooter_id, x, y, vel_x, vel_y, dead)
     %{missiles | entities: [missile | missiles.entities]}
   end
 
@@ -59,6 +59,7 @@ defmodule Yarnballs.Missile do
 
   @enforce_keys [
     :id,
+    :shooter_id,
     :updated_at,
     :x,
     :y,
@@ -77,9 +78,11 @@ defmodule Yarnballs.Missile do
 
   @lifespan 1000
 
-  def spawn(x, y, vel_x, vel_y, dead) do
+  # TODO: consider passing a map?
+  def spawn(shooter_id, x, y, vel_x, vel_y, dead) do
     %__MODULE__{
       id: Ecto.UUID.generate(),
+      shooter_id: shooter_id,
       updated_at: Yarnballs.Utils.now_milliseconds(),
       x: x,
       y: y,

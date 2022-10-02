@@ -3,6 +3,7 @@ defmodule Yarnballs.Explosions do
   Represents a collection of explosions.
   """
   alias Yarnballs.Explosion
+  alias Yarnballs.Enemy
 
   @type t :: %__MODULE__{
           entities: list(Explosion.t())
@@ -17,7 +18,7 @@ defmodule Yarnballs.Explosions do
   end
 
   def spawn(explosions, thing) do
-    %{explosions | entities: [Explosion.spawn(thing) | explosions.entities]}
+    %{explosions | entities: [Enemy.explode(thing) | explosions.entities]}
   end
 
   def update(explosions) do
@@ -39,9 +40,6 @@ defmodule Yarnballs.Explosion do
   Represent an explosion.
   """
   require Logger
-  alias Yarnballs.Enemy
-  alias Yarnballs.Enemy.Rock
-  alias Yarnballs.Collidable
 
   @type t :: %__MODULE__{
           id: binary,
@@ -66,21 +64,7 @@ defmodule Yarnballs.Explosion do
 
   @lifespan 1000
 
-  # TODO: consider making this a protocol?
-  def spawn(thing) do
-    {x, y, size} =
-      case thing do
-        # TODO: don't rely on collidable protocol / radius for size since it's indirect
-        %Enemy{} ->
-          {thing.x, thing.y, Collidable.radius(thing) * 2}
-
-        %Rock{} ->
-          {thing.x, thing.y, Collidable.radius(thing) * 2}
-
-        _ ->
-          raise "cannot spawn explosion for #{thing}"
-      end
-
+  def spawn(x, y, size) do
     %__MODULE__{
       id: Ecto.UUID.generate(),
       updated_at: Yarnballs.Utils.now_milliseconds(),

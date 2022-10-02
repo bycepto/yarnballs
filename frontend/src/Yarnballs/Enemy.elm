@@ -34,16 +34,26 @@ type alias Enemies =
 
 
 type Enemy
-    = Bouncer EnemyData
-    | Rock EnemyData
+    = Bouncer BouncerData
+    | Rock RockData
 
 
-type alias EnemyData =
+type alias BouncerData =
     { id : String
     , x : Float
     , y : Float
     , velX : Float
     , velY : Float
+    }
+
+
+type alias RockData =
+    { id : String
+    , x : Float
+    , y : Float
+    , velX : Float
+    , velY : Float
+    , scale : Float
     }
 
 
@@ -104,23 +114,34 @@ decodeByKind : String -> D.Decoder Enemy
 decodeByKind kind =
     case kind of
         "bouncer" ->
-            D.map Bouncer decodeEnemyData
+            D.map Bouncer decodeBouncerData
 
         "rock" ->
-            D.map Rock decodeEnemyData
+            D.map Rock decodeRockData
 
         _ ->
             D.fail <| "unknown kind \"" ++ kind ++ "\""
 
 
-decodeEnemyData : D.Decoder EnemyData
-decodeEnemyData =
-    D.succeed EnemyData
+decodeBouncerData : D.Decoder BouncerData
+decodeBouncerData =
+    D.succeed BouncerData
         |> DP.required "id" D.string
         |> DP.required "x" D.float
         |> DP.required "y" D.float
         |> DP.required "vel_x" D.float
         |> DP.required "vel_y" D.float
+
+
+decodeRockData : D.Decoder RockData
+decodeRockData =
+    D.succeed RockData
+        |> DP.required "id" D.string
+        |> DP.required "x" D.float
+        |> DP.required "y" D.float
+        |> DP.required "vel_x" D.float
+        |> DP.required "vel_y" D.float
+        |> DP.required "scale" D.float
 
 
 
@@ -194,7 +215,7 @@ width enemy =
             256 * scale enemy
 
         Rock _ ->
-            90
+            90 * scale enemy
 
 
 height : Enemy -> Float
@@ -213,8 +234,8 @@ scale enemy =
         Bouncer _ ->
             0.3
 
-        Rock _ ->
-            1
+        Rock rock ->
+            rock.scale
 
 
 getTexture : EnemyTextures -> Enemy -> VT.Texture

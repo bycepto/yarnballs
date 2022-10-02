@@ -28,6 +28,7 @@ import Json.Decode.Pipeline as DP
 import Json.Encode as E
 import Keyboard as K
 import Keyboard.Arrows as KA
+import Round
 import VitePluginHelper as VPH
 
 
@@ -372,10 +373,10 @@ renderUserHealth ship =
         ( ship.x, ship.y )
     <|
         if dead ship then
-            "dead"
+            "dead (respawning soon)"
 
         else
-            String.fromFloat ship.health
+            "shields: " ++ Round.round 0 ship.health ++ "%"
 
 
 renderOtherShips : VT.Texture -> List OtherShip -> List V.Renderable

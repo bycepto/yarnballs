@@ -3,6 +3,7 @@ defmodule Yarnballs.PlayerShips do
   Represents an collection of ships operated by players.
   """
   alias Yarnballs.PlayerShip
+  alias Yarnballs.PlayerCollidable
 
   @type t :: %__MODULE__{
           entities: %{binary => PlayerShip.t()}
@@ -14,6 +15,18 @@ defmodule Yarnballs.PlayerShips do
 
   def init() do
     %__MODULE__{entities: %{}}
+  end
+
+  @spec dead(t) :: MapSet.t(binary)
+  def dead(ships) do
+    ships.entities
+    |> Map.filter(fn {_id, ship} -> PlayerShip.dead?(ship) end)
+    |> Map.keys()
+    |> MapSet.new()
+  end
+
+  def fetch(players, id) do
+    Map.fetch(players.entities, id)
   end
 
   def entities(players) do
@@ -41,7 +54,7 @@ defmodule Yarnballs.PlayerShips do
       Map.update!(
         players.entities,
         id,
-        fn ship -> PlayerShip.collide_with(ship, thing) end
+        fn ship -> PlayerCollidable.collide_with(thing, ship) end
       )
 
     %{players | entities: entities}
@@ -62,8 +75,6 @@ defmodule Yarnballs.PlayerShip do
   Represent ships operated by players.
   """
   require Logger
-  alias Yarnballs.Enemy
-  alias Yarnballs.Enemy.Rock
 
   @type t :: %__MODULE__{
           id: binary,
@@ -95,7 +106,7 @@ defmodule Yarnballs.PlayerShip do
     def radius(_), do: 45.0
   end
 
-  @health 100
+  @max_health 100
 
   def spawn(id) do
     %__MODULE__{
@@ -106,38 +117,13 @@ defmodule Yarnballs.PlayerShip do
       vel_y: 0,
       angle: 0,
       thrusting: false,
-      health: @health,
+      health: @max_health,
       destroyed_at: nil
     }
   end
 
-  @bouncer_repel_velocity 10
-  @rock_repel_velocity 2
-  @rock_damage 5
-
-  def collide_with(player, thing) do
-    # TODO: check collision and guard?
-
-    # TODO: consider making this a protocol
-    case thing do
-      %Enemy{} ->
-        new_angle = repel_angle(player, thing)
-        vel_x = @bouncer_repel_velocity * :math.cos(new_angle)
-        vel_y = @bouncer_repel_velocity * :math.sin(new_angle)
-        %{player | vel_x: vel_x, vel_y: vel_y}
-
-      %Rock{} ->
-        new_angle = repel_angle(player, thing)
-        vel_x = @rock_repel_velocity * :math.cos(new_angle)
-        vel_y = @rock_repel_velocity * :math.sin(new_angle)
-        %{player | health: player.health - @rock_damage, vel_x: vel_x, vel_y: vel_y}
-
-      _ ->
-        raise "cannot collide with #{thing}"
-    end
-  end
-
   @respawn_delay 10_000
+  @health_recharge 0.005
 
   def update(player) do
     cond do
@@ -146,7 +132,7 @@ defmodule Yarnballs.PlayerShip do
 
         if dt > @respawn_delay do
           # respawn
-          %{player | destroyed_at: nil, health: @health}
+          %{player | destroyed_at: nil, health: @max_health}
         else
           player
         end
@@ -155,15 +141,10 @@ defmodule Yarnballs.PlayerShip do
         %{player | destroyed_at: Yarnballs.Utils.now_milliseconds()}
 
       true ->
-        player
+        # TODO: increase health recharge when near other players?
+        %{player | health: min(@max_health, player.health + @health_recharge)}
     end
   end
 
   def dead?(player), do: player.destroyed_at != nil
-
-  defp repel_angle(player, %{x: x, y: y}) do
-    dy = y - player.y
-    dx = x - player.x
-    :math.atan2(dy, dx) + :math.pi()
-  end
 end

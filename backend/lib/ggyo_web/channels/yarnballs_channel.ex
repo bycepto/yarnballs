@@ -28,7 +28,7 @@ defmodule GgyoWeb.YarnballsChannel do
         %{"x" => x, "y" => y, "vel_x" => vel_x, "vel_y" => vel_y, "dead" => dead},
         socket
       ) do
-    Ggyo.Yarnballs.GameLoop.fire_missile(x, y, vel_x, vel_y, dead)
+    Ggyo.Yarnballs.GameLoop.fire_missile(socket.assigns.user.id, x, y, vel_x, vel_y, dead)
     {:noreply, socket}
   end
 end
