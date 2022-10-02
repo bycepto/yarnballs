@@ -69,6 +69,7 @@ type alias OtherShip =
     , y : Float
     , angle : Float
     , thrusting : Bool
+    , health : Float
     }
 
 
@@ -140,6 +141,7 @@ decodeOtherShip =
         |> DP.required "y" D.float
         |> DP.required "angle" D.float
         |> DP.required "thrusting" D.bool
+        |> DP.required "health" D.float
 
 
 type alias PartialUserShip =
@@ -401,6 +403,12 @@ renderOtherShip texture ship =
                 , VA.rotate ship.angle
                 , VA.translate -centerX -centerY
                 ]
+            , VA.alpha <|
+                if dead ship then
+                    0.3
+
+                else
+                    1
             ]
             ( ship.x, ship.y )
             sprite
