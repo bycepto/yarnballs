@@ -389,7 +389,7 @@ renderUserHealth ship =
             "shields: " ++ Round.round 0 ship.health ++ "%"
 
 
-renderDisplayName : UserShip -> V.Renderable
+renderDisplayName : { a | name : Maybe String, x : Float, y : Float } -> V.Renderable
 renderDisplayName ship =
     V.text
         [ VW.align VW.Center
@@ -431,6 +431,7 @@ renderOtherShip texture ship =
             ]
             ( ship.x, ship.y )
             sprite
+        , renderDisplayName ship
         ]
 
 
