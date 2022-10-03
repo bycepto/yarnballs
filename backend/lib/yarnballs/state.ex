@@ -53,8 +53,17 @@ defmodule Yarnballs.State do
     }
   end
 
-  def spawn_ship(state, id) do
-    %{state | ships: PlayerShips.spawn(state.ships, id)}
+  def spawn_ship(state, id, name) do
+    %{state | ships: PlayerShips.spawn(state.ships, id, name)}
+  end
+
+  def remove_ship(state, id) do
+    %{
+      state
+      | ships: PlayerShips.remove(state.ships, id),
+        # TODO: move score by ship into ship?
+        score_by_ship: Map.delete(state.score_by_ship, id)
+    }
   end
 
   def move_ship(state, id, x, y, angle, thrusting) do

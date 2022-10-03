@@ -20,6 +20,7 @@ import App.WebSocket
 import Canvas as V
 import Canvas.Settings as VS
 import Canvas.Settings.Advanced as VA
+import Canvas.Settings.Text as VW
 import Canvas.Texture as VT
 import Color
 import Dict
@@ -45,14 +46,15 @@ type alias Ships =
 
 init : Ships
 init =
-    { ship = UserShip 0 0 0 0 False 0 -fireShotCooldownTicks 0
+    { ship = UserShip Nothing 0 0 0 0 False 0 -fireShotCooldownTicks 0
     , otherShips = []
     , texture = Nothing
     }
 
 
 type alias UserShip =
-    { x : Float
+    { name : Maybe String
+    , x : Float
     , y : Float
     , velX : Float
     , velY : Float
@@ -65,6 +67,7 @@ type alias UserShip =
 
 type alias OtherShip =
     { id : UserId
+    , name : Maybe String
     , x : Float
     , y : Float
     , angle : Float
@@ -109,13 +112,14 @@ handleDecoded ships otherShips partialUserShip =
                 Nothing ->
                     ships.ship
 
-                Just { velX, velY, health } ->
+                Just { name, velX, velY, health } ->
                     let
                         ship =
                             ships.ship
                     in
                     { ship
-                        | velX = ship.velX + velX
+                        | name = name
+                        , velX = ship.velX + velX
                         , velY = ship.velY + velY
                         , health = health
                     }
@@ -137,6 +141,7 @@ decodeOtherShip : D.Decoder OtherShip
 decodeOtherShip =
     D.succeed OtherShip
         |> DP.required "id" App.User.decodeId
+        |> DP.required "name" (D.nullable D.string)
         |> DP.required "x" D.float
         |> DP.required "y" D.float
         |> DP.required "angle" D.float
@@ -145,7 +150,8 @@ decodeOtherShip =
 
 
 type alias PartialUserShip =
-    { velX : Float
+    { name : Maybe String
+    , velX : Float
     , velY : Float
     , health : Float
     }
@@ -166,6 +172,7 @@ decodePartialUserShip userId =
 decodePartialShip : D.Decoder PartialUserShip
 decodePartialShip =
     D.succeed PartialUserShip
+        |> DP.required "name" (D.nullable D.string)
         |> DP.required "vel_x" D.float
         |> DP.required "vel_y" D.float
         |> DP.required "health" D.float
@@ -364,6 +371,7 @@ renderUserShip hurt texture ship =
             ]
             ( ship.x, ship.y )
             sprite
+        , renderDisplayName ship
         , renderUserHealth ship
         ]
 
@@ -371,14 +379,25 @@ renderUserShip hurt texture ship =
 renderUserHealth : UserShip -> V.Renderable
 renderUserHealth ship =
     V.text
-        []
-        ( ship.x, ship.y )
+        [ VW.align VW.Center ]
+        ( ship.x + width / 2, ship.y + height + 20 )
     <|
         if dead ship then
             "dead (respawning soon)"
 
         else
             "shields: " ++ Round.round 0 ship.health ++ "%"
+
+
+renderDisplayName : UserShip -> V.Renderable
+renderDisplayName ship =
+    V.text
+        [ VW.align VW.Center
+        , VW.maxWidth width
+        ]
+        ( ship.x + width / 2, ship.y + height + 5 )
+    <|
+        Maybe.withDefault "???" ship.name
 
 
 renderOtherShips : VT.Texture -> List OtherShip -> List V.Renderable

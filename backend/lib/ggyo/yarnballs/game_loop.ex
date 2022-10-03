@@ -13,8 +13,12 @@ defmodule Ggyo.Yarnballs.GameLoop do
     GenServer.start_link(__MODULE__, state, name: :game_loop)
   end
 
-  def join(id) do
-    GenServer.cast(:game_loop, {:join, id})
+  def join(id, name) do
+    GenServer.cast(:game_loop, {:join, id, name})
+  end
+
+  def leave(id) do
+    GenServer.cast(:game_loop, {:leave, id})
   end
 
   def moved_ship(id, x, y, angle, thrusting) do
@@ -35,8 +39,13 @@ defmodule Ggyo.Yarnballs.GameLoop do
   end
 
   @impl true
-  def handle_cast({:join, id}, state) do
-    {:noreply, State.spawn_ship(state, id)}
+  def handle_cast({:join, id, name}, state) do
+    {:noreply, State.spawn_ship(state, id, name)}
+  end
+
+  @impl true
+  def handle_cast({:leave, id}, state) do
+    {:noreply, State.remove_ship(state, id)}
   end
 
   @impl true

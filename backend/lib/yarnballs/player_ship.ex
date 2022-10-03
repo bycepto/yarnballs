@@ -33,10 +33,14 @@ defmodule Yarnballs.PlayerShips do
     Map.values(players.entities)
   end
 
-  def spawn(players, id) do
-    player = PlayerShip.spawn(id)
-    # TODO: should a player only be able to join once? what happens if they leave?
+  def spawn(players, id, name) do
+    player = PlayerShip.spawn(id, name)
     entities = Map.put_new(players.entities, player.id, player)
+    %{players | entities: entities}
+  end
+
+  def remove(players, id) do
+    entities = Map.delete(players.entities, id)
     %{players | entities: entities}
   end
 
@@ -78,6 +82,7 @@ defmodule Yarnballs.PlayerShip do
 
   @type t :: %__MODULE__{
           id: binary,
+          name: binary | nil,
           x: float,
           y: float,
           vel_x: float,
@@ -89,6 +94,7 @@ defmodule Yarnballs.PlayerShip do
         }
   @enforce_keys [
     :id,
+    :name,
     :x,
     :y,
     :vel_x,
@@ -108,9 +114,10 @@ defmodule Yarnballs.PlayerShip do
 
   @max_health 100
 
-  def spawn(id) do
+  def spawn(id, name) do
     %__MODULE__{
       id: id,
+      name: name,
       x: 0,
       y: 0,
       vel_x: 0,
