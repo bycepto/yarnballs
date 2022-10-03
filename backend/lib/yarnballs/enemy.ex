@@ -118,10 +118,13 @@ defmodule Yarnballs.Enemy.Bouncer do
   @padding 50
 
   @arc 50
-  @min_vel 50
-  @max_vel 100
+  @default_min_vel 50
+  @default_max_vel 100
 
-  def spawn() do
+  def spawn(opts \\ %{}) do
+    min_vel = Map.get(opts, :min_vel, @default_min_vel)
+    max_vel = Map.get(opts, :max_vel, @default_max_vel)
+
     {spawn_x, spawn_y} =
       case Enum.random([:horizontal, :vertical]) do
         :horizontal ->
@@ -135,8 +138,8 @@ defmodule Yarnballs.Enemy.Bouncer do
     center_y = @height / 2
     angle_adjustment = :math.pi() * Enum.random(-@arc..@arc) / 180
     angle = :math.atan2(center_y - spawn_y, center_x - spawn_x) + angle_adjustment
-    vel_x = Enum.random(@min_vel..@max_vel) * :math.cos(angle)
-    vel_y = Enum.random(@min_vel..@max_vel) * :math.sin(angle)
+    vel_x = Enum.random(min_vel..max_vel) * :math.cos(angle)
+    vel_y = Enum.random(min_vel..max_vel) * :math.sin(angle)
 
     %__MODULE__{
       id: Ecto.UUID.generate(),
@@ -179,11 +182,10 @@ defmodule Yarnballs.Enemy.Rock do
   defstruct @enforce_keys
 
   defimpl Jason.Encoder do
-    def encode(card, opts) do
-      card
+    def encode(rock, opts) do
+      rock
       |> Map.take([
         :id,
-        :updated_at,
         :x,
         :y,
         :vel_x,
@@ -221,10 +223,11 @@ defmodule Yarnballs.Enemy.Rock do
   @padding 50
 
   @arc 50
-  @min_vel 50
-  @max_vel 100
+  @default_min_vel 50
+  @default_max_vel 100
+  @default_scale 0.75
 
-  def spawn() do
+  def spawn(opts \\ %{}) do
     {spawn_x, spawn_y} =
       case Enum.random([:horizontal, :vertical]) do
         :horizontal ->
@@ -239,11 +242,11 @@ defmodule Yarnballs.Enemy.Rock do
     angle_adjustment = :math.pi() * Enum.random(-@arc..@arc) / 180
     angle = :math.atan2(center_y - spawn_y, center_x - spawn_x) + angle_adjustment
 
-    spawn_at(spawn_x, spawn_y, angle, 2.0)
+    spawn_at(spawn_x, spawn_y, angle, opts)
   end
 
   def split(%__MODULE__{x: x, y: y, scale: scale} = rock) do
-    if scale < 0.75 do
+    if scale <= @default_scale do
       []
     else
       angle = :math.pi() * Enum.random(1..360) / 180
@@ -251,14 +254,19 @@ defmodule Yarnballs.Enemy.Rock do
 
       [0, :math.pi() / 2, :math.pi(), 3 * :math.pi() / 2]
       |> Enum.map(fn theta ->
-        spawn_at(x + radius, y + radius, angle + theta, scale / 2)
+        opts = %{max_scale: scale / 2}
+        spawn_at(x + radius, y + radius, angle + theta, opts)
       end)
     end
   end
 
-  defp spawn_at(x, y, angle, max_scale) do
-    vel_x = Enum.random(@min_vel..@max_vel) * :math.cos(angle)
-    vel_y = Enum.random(@min_vel..@max_vel) * :math.sin(angle)
+  defp spawn_at(x, y, angle, opts) do
+    max_scale = Map.get(opts, :max_scale, @default_scale)
+    min_vel = Map.get(opts, :min_vel, @default_min_vel)
+    max_vel = Map.get(opts, :max_vel, @default_max_vel)
+
+    vel_x = Enum.random(min_vel..max_vel) * :math.cos(angle)
+    vel_y = Enum.random(min_vel..max_vel) * :math.sin(angle)
 
     scale = Enum.random(30..round(max_scale * 100)) / 100
 

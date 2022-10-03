@@ -50,6 +50,7 @@ type alias Page =
 
     -- stats
     , scores : Scores
+    , level : Int
     }
 
 
@@ -153,6 +154,7 @@ init =
     , missiles = Yarnballs.Missile.init
     , booms = Yarnballs.Boom.init
     , scores = Dict.empty
+    , level = 0
     }
 
 
@@ -306,6 +308,7 @@ handleDecoded page state =
         , booms = state.booms
         , ships = state.ships
         , scores = state.scores
+        , level = state.level
     }
 
 
@@ -316,6 +319,7 @@ type alias State =
     , ships : Ships
     , booms : Booms
     , scores : Scores
+    , level : Int
     }
 
 
@@ -327,6 +331,7 @@ decodeState userId page =
         |> DP.requiredAt [ "state", "ships", "entities" ] (Yarnballs.Ship.decode userId page.ships)
         |> DP.requiredAt [ "state", "enemies", "explosions", "entities" ] (Yarnballs.Boom.decode page.tick page.booms)
         |> DP.requiredAt [ "state", "score_by_ship" ] decodeScores
+        |> DP.requiredAt [ "state", "level" ] D.int
 
 
 decodeScores : D.Decoder Scores
@@ -458,14 +463,14 @@ viewBody toMsg env page =
                     -- prevent scrolling
                     , At.style "overflow-x" "hidden"
                     ]
-                    [ viewStats page.scores
+                    [ viewStats page
                     , viewGame toMsg page
                     , viewCredits
                     ]
 
 
-viewStats : Scores -> H.Html msg
-viewStats scores =
+viewStats : Page -> H.Html msg
+viewStats page =
     H.div
         [ -- flex
           At.style "display" "flex"
@@ -475,7 +480,9 @@ viewStats scores =
         , At.style "row-gap" "1em"
         ]
         [ H.div [] [ H.text "score" ]
-        , H.div [] [ H.text <| String.fromInt <| totalScore scores ]
+        , H.div [] [ H.text <| String.fromInt <| totalScore page.scores ]
+        , H.div [] [ H.text "level" ]
+        , H.div [] [ H.text <| String.fromInt page.level ]
         ]
 
 

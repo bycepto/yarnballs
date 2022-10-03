@@ -10,8 +10,6 @@ defmodule Yarnballs.State do
   alias Yarnballs.Enemies
   alias Yarnballs.Collider
   alias Yarnballs.Spawner
-  alias Yarnballs.Level0Spawner
-  alias Yarnballs.Level1Spawner
 
   @type t :: %__MODULE__{
           collisions_updated_at: integer(),
@@ -21,9 +19,29 @@ defmodule Yarnballs.State do
           score_by_ship: %{binary => non_neg_integer}
         }
 
-  @enforce_keys [:collisions_updated_at, :missiles, :enemies, :ships, :score_by_ship]
-  @derive {Jason.Encoder, only: @enforce_keys}
+  @enforce_keys [
+    :collisions_updated_at,
+    :missiles,
+    :enemies,
+    :ships,
+    :score_by_ship
+  ]
   defstruct @enforce_keys
+
+  defimpl Jason.Encoder do
+    def encode(state, opts) do
+      state
+      |> Map.take([
+        :collisions_updated_at,
+        :missiles,
+        :enemies,
+        :ships,
+        :score_by_ship
+      ])
+      |> Map.put(:level, Yarnballs.State.level(state))
+      |> Jason.Encode.map(opts)
+    end
+  end
 
   def init() do
     %__MODULE__{
@@ -57,14 +75,44 @@ defmodule Yarnballs.State do
   end
 
   def spawn_enemies(state) do
-    spawner =
-      case total_score(state) do
-        x when x < 25 -> Level0Spawner
-        _ -> Level1Spawner
-      end
+    {_, spawner} = level_with_spawner(state)
 
-    %{state | enemies: Spawner.spawn(spawner, state.enemies)}
+    %{state | enemies: Spawner.update(spawner, state.enemies)}
   end
+
+  def level(state) do
+    {lvl, _} = level_with_spawner(state)
+    lvl
+  end
+
+  defp level_with_spawner(state) do
+    case total_score(state) do
+      x when x < 15 -> {0, Spawner.AFewBouncers}
+      x when x < 30 -> {1, Spawner.AFewRocks}
+      x when x < 60 -> {2, Spawner.AFewBouncersAndRocks}
+      x when x < 90 -> {3, Spawner.Rocks}
+      x when x < 120 -> {4, Spawner.BouncersAndRocks}
+      x when x < 200 -> {5, Spawner.BiggerRocks}
+      x when x < 280 -> {6, Spawner.BouncersAndBiggerRocks}
+      x when x < 330 -> {7, Spawner.FasterRocks}
+      x when x < 430 -> {8, Spawner.FasterRocksAndBiggerRocks}
+      x when x < 1000 -> {9, Spawner.BouncersAndFasterRocksAndBiggerRocks}
+      _ -> {10, Spawner.Madness}
+    end
+  end
+
+  ## Leave for testing ^
+  # x when x < 1 -> {0, Spawner.AFewBouncers}
+  # x when x < 2 -> {1, Spawner.AFewRocks}
+  # x when x < 3 -> {2, Spawner.AFewBouncersAndRocks}
+  # x when x < 4 -> {3, Spawner.Rocks}
+  # x when x < 5 -> {4, Spawner.BouncersAndRocks}
+  # x when x < 6 -> {5, Spawner.BiggerRocks}
+  # x when x < 7 -> {6, Spawner.BouncersAndBiggerRocks}
+  # x when x < 8 -> {7, Spawner.FasterRocks}
+  # x when x < 9 -> {8, Spawner.FasterRocksAndBiggerRocks}
+  # x when x < 10 -> {9, Spawner.BouncersAndFasterRocksAndBiggerRocks}
+  # _ -> {10, Spawner.Madness}
 
   defp total_score(state) do
     state.score_by_ship
