@@ -317,14 +317,14 @@ acceleration =
 -- RENDER
 
 
-render : Ships -> List V.Renderable
-render ships =
+render : Bool -> Ships -> List V.Renderable
+render hurt ships =
     case ships.texture of
         Nothing ->
             []
 
         Just texture ->
-            renderUserShip texture ships.ship :: renderOtherShips texture ships.otherShips
+            renderUserShip hurt texture ships.ship :: renderOtherShips texture ships.otherShips
 
 
 width : Float
@@ -337,8 +337,8 @@ height =
     width
 
 
-renderUserShip : VT.Texture -> UserShip -> V.Renderable
-renderUserShip texture ship =
+renderUserShip : Bool -> VT.Texture -> UserShip -> V.Renderable
+renderUserShip hurt texture ship =
     let
         sprite =
             shipSprite texture ship
@@ -348,7 +348,7 @@ renderUserShip texture ship =
     in
     V.group
         []
-        [ renderShipRadius ship
+        [ renderShipRadius hurt ship
         , V.texture
             [ VA.transform
                 [ VA.translate centerX centerY
@@ -431,10 +431,14 @@ shipSprite texture ship =
         texture
 
 
-renderShipRadius : UserShip -> V.Renderable
-renderShipRadius ship =
+renderShipRadius : Bool -> UserShip -> V.Renderable
+renderShipRadius hurt ship =
     V.shapes
-        [ VS.fill Color.white
+        [ if hurt then
+            VS.fill Color.red
+
+          else
+            VS.fill Color.white
         , VS.stroke Color.black
         , VA.alpha 0.1
         ]

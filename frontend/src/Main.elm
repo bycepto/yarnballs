@@ -624,7 +624,7 @@ viewPage model =
                 model
             <|
                 { title = doc.title
-                , content = H.fromUnstyled doc.content
+                , content = doc.content
                 }
 
         ( _, Nothing ) ->

@@ -18,9 +18,13 @@ import App.WebSocket exposing (WebSocket)
 import Browser.Events as BE
 import Canvas as V
 import Canvas.Texture as VT
+import Css as C
+import Css.Animations as An
 import Dict exposing (Dict)
-import Html as H
-import Html.Attributes as At
+import Html as UH
+import Html.Attributes as UAt
+import Html.Styled as H
+import Html.Styled.Attributes as At
 import Json.Decode as D
 import Json.Decode.Pipeline as DP
 import Json.Encode as E
@@ -51,6 +55,9 @@ type alias Page =
     -- stats
     , scores : Scores
     , level : Int
+
+    -- effects
+    , shakeFor : Int
     }
 
 
@@ -155,7 +162,13 @@ init =
     , booms = Yarnballs.Boom.init
     , scores = Dict.empty
     , level = 0
+    , shakeFor = 0
     }
+
+
+shakeTicks : Int
+shakeTicks =
+    30
 
 
 type alias Scores =
@@ -286,7 +299,14 @@ handleWebSocketMessage userId serialized page =
                 RequestedState ->
                     case D.decodeValue (decode userId page) message.payload of
                         Ok newPage ->
-                            newPage
+                            { newPage
+                                | shakeFor =
+                                    if newPage.ships.ship.health < page.ships.ship.health then
+                                        shakeTicks
+
+                                    else
+                                        newPage.shakeFor
+                            }
 
                         Err error ->
                             { page | error = Just (D.errorToString error) }
@@ -378,7 +398,10 @@ handlePhysics page =
 
 updateTick : Page -> Page
 updateTick page =
-    { page | tick = page.tick + 1 }
+    { page
+        | tick = page.tick + 1
+        , shakeFor = max 0 (page.shakeFor - 1)
+    }
 
 
 handleKeyPresses : Page -> Page
@@ -437,7 +460,8 @@ viewBody toMsg env page =
     else
         case page.error of
             Just error ->
-                H.div []
+                H.div
+                    []
                     [ H.text <|
                         "Error loading page"
                             ++ (if env.devMode then
@@ -462,11 +486,41 @@ viewBody toMsg env page =
 
                     -- prevent scrolling
                     , At.style "overflow-x" "hidden"
+                    , At.css <|
+                        if page.shakeFor > 0 then
+                            styleShake
+
+                        else
+                            []
                     ]
                     [ viewStats page
-                    , viewGame toMsg page
+                    , H.fromUnstyled <| viewGame toMsg page
                     , viewCredits
                     ]
+
+
+styleShake : List C.Style
+styleShake =
+    -- https://css-tricks.com/snippets/css/shake-css-keyframe-animation/
+    [ C.animationName <|
+        An.keyframes
+            [ ( 0, [ An.property "transform" "translate3d(0, 0, 0)" ] )
+            , ( 10, [ An.property "transform" "translate3d(-1px, 0, 0)" ] )
+            , ( 20, [ An.property "transform" "translate3d(2px, 0, 0)" ] )
+            , ( 30, [ An.property "transform" "translate3d(-4px, 0, 0)" ] )
+            , ( 40, [ An.property "transform" "translate3d(4px, 0, 0)" ] )
+            , ( 50, [ An.property "transform" "translate3d(-4px, 0, 0)" ] )
+            , ( 60, [ An.property "transform" "translate3d(4px, 0, 0)" ] )
+            , ( 70, [ An.property "transform" "translate3d(-4px, 0, 0)" ] )
+            , ( 80, [ An.property "transform" "translate3d(2px, 0, 0)" ] )
+            , ( 90, [ An.property "transform" "translate3d(-1px, 0, 0)" ] )
+            , ( 100, [ An.property "transform" "translate3d(0, 0, 0)" ] )
+            ]
+    , C.animationDuration (C.sec 0.82)
+    , C.property "animation-timing-function" "cubic-bezier"
+    , C.property "animation-fill-mode" "both"
+    , C.property "animation-iteration-count" "infinite"
+    ]
 
 
 viewStats : Page -> H.Html msg
@@ -499,14 +553,14 @@ viewCredits =
         ]
 
 
-viewGame : ToMsg msg -> Page -> H.Html msg
+viewGame : ToMsg msg -> Page -> UH.Html msg
 viewGame toMsg page =
     V.toHtmlWith
         { width = width
         , height = height
         , textures = loadTextures toMsg
         }
-        [ At.style "border" "10px solid rgba(0,0,0,0.1)"
+        [ UAt.style "border" "10px solid rgba(0,0,0,0.1)"
         ]
     <|
         render page
@@ -528,7 +582,7 @@ render page =
         [ [ V.clear ( 0, 0 ) width height ]
         , Yarnballs.Enemy.render page.tick page.enemies
         , Yarnballs.Missile.render page.missiles
-        , Yarnballs.Ship.render page.ships
+        , Yarnballs.Ship.render (page.shakeFor > 0) page.ships
         , Yarnballs.Boom.render page.tick page.booms
         ]
 
