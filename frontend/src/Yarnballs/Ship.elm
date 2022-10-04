@@ -383,7 +383,7 @@ renderUserHealth ship =
         ( ship.x + width / 2, ship.y + height + 20 )
     <|
         if dead ship then
-            "dead (respawning soon)"
+            "dead (fire to respawn)"
 
         else
             "shields: " ++ Round.round 0 ship.health ++ "%"

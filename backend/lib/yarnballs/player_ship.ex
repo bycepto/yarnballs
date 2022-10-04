@@ -33,6 +33,13 @@ defmodule Yarnballs.PlayerShips do
     Map.values(players.entities)
   end
 
+  def total_score(players) do
+    players.entities
+    |> Map.values()
+    |> Enum.map(fn p -> p.score end)
+    |> Enum.sum()
+  end
+
   def spawn(players, id, name) do
     player = PlayerShip.spawn(id, name)
     entities = Map.put_new(players.entities, player.id, player)
@@ -44,21 +51,57 @@ defmodule Yarnballs.PlayerShips do
     %{players | entities: entities}
   end
 
-  def move(players, id, x, y, angle, thrusting) do
+  def increase_scores(players, scores) do
     entities =
-      Map.update!(players.entities, id, fn ship ->
-        %{ship | x: x, y: y, vel_x: 0, vel_y: 0, angle: angle, thrusting: thrusting}
-      end)
+      Map.merge(
+        players.entities,
+        scores,
+        fn _key, ship, score -> %{ship | score: ship.score + score} end
+      )
+
+    %{players | entities: entities}
+  end
+
+  def move(players, id, x, y, angle, thrusting) do
+    {_, entities} =
+      Map.get_and_update(
+        players.entities,
+        id,
+        fn
+          nil ->
+            :pop
+
+          ship ->
+            {nil, %{ship | x: x, y: y, vel_x: 0, vel_y: 0, angle: angle, thrusting: thrusting}}
+        end
+      )
 
     %{players | entities: entities}
   end
 
   def collide_with(players, id, thing) do
-    entities =
-      Map.update!(
+    {_, entities} =
+      Map.get_and_update(
         players.entities,
         id,
-        fn ship -> PlayerCollidable.collide_with(thing, ship) end
+        fn
+          nil -> :pop
+          ship -> {nil, PlayerCollidable.collide_with(thing, ship)}
+        end
+      )
+
+    %{players | entities: entities}
+  end
+
+  def respawn(players, id) do
+    {_, entities} =
+      Map.get_and_update(
+        players.entities,
+        id,
+        fn
+          nil -> :pop
+          ship -> {nil, PlayerShip.respawn(ship)}
+        end
       )
 
     %{players | entities: entities}
@@ -67,10 +110,17 @@ defmodule Yarnballs.PlayerShips do
   def update(players) do
     entities =
       players.entities
-      |> Enum.map(fn {id, player} -> {id, PlayerShip.update(player)} end)
+      |> Enum.flat_map(&maybe_update/1)
       |> Enum.into(%{})
 
     %{players | entities: entities}
+  end
+
+  defp maybe_update({id, player}) do
+    case PlayerShip.update(player) do
+      :delete -> []
+      _ -> [{id, PlayerShip.update(player)}]
+    end
   end
 end
 
@@ -102,6 +152,7 @@ defmodule Yarnballs.PlayerShip do
     :angle,
     :thrusting,
     :health,
+    :score,
     :destroyed_at
   ]
   @derive {Jason.Encoder, only: @enforce_keys}
@@ -125,31 +176,45 @@ defmodule Yarnballs.PlayerShip do
       angle: 0,
       thrusting: false,
       health: @max_health,
+      score: 0,
       destroyed_at: nil
     }
   end
 
-  @respawn_delay 10_000
   @health_recharge 0.005
+  # five minutes to respawn
+  @kick_delay 150_000
 
   def update(player) do
     cond do
       dead?(player) ->
         dt = Yarnballs.Utils.now_milliseconds() - player.destroyed_at
 
-        if dt > @respawn_delay do
-          # respawn
-          %{player | destroyed_at: nil, health: @max_health}
+        if dt > @kick_delay do
+          :delete
         else
           player
         end
 
       player.health <= 0 ->
-        %{player | destroyed_at: Yarnballs.Utils.now_milliseconds()}
+        # subtract 50 points each time a ship is destroyed.
+        %{
+          player
+          | destroyed_at: Yarnballs.Utils.now_milliseconds(),
+            score: max(0, player.score - 50)
+        }
 
       true ->
         # TODO: increase health recharge when near other players?
         %{player | health: min(@max_health, player.health + @health_recharge)}
+    end
+  end
+
+  def respawn(player) do
+    if dead?(player) do
+      %{player | destroyed_at: nil, health: @max_health}
+    else
+      player
     end
   end
 

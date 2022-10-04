@@ -20,7 +20,6 @@ import Canvas as V
 import Canvas.Texture as VT
 import Css as C
 import Css.Animations as An
-import Dict exposing (Dict)
 import Html as UH
 import Html.Attributes as UAt
 import Html.Styled as H
@@ -53,7 +52,7 @@ type alias Page =
     , booms : Booms
 
     -- stats
-    , scores : Scores
+    , score : Int
     , level : Int
 
     -- effects
@@ -160,7 +159,7 @@ init =
     , enemies = Yarnballs.Enemy.init
     , missiles = Yarnballs.Missile.init
     , booms = Yarnballs.Boom.init
-    , scores = Dict.empty
+    , score = 0
     , level = 0
     , shakeFor = 0
     }
@@ -169,15 +168,6 @@ init =
 shakeTicks : Int
 shakeTicks =
     30
-
-
-type alias Scores =
-    Dict String Int
-
-
-totalScore : Scores -> Int
-totalScore scores =
-    List.sum <| Dict.values scores
 
 
 
@@ -327,7 +317,7 @@ handleDecoded page state =
         , missiles = state.missiles
         , booms = state.booms
         , ships = state.ships
-        , scores = state.scores
+        , score = state.score
         , level = state.level
     }
 
@@ -338,7 +328,7 @@ type alias State =
     , missiles : Missiles
     , ships : Ships
     , booms : Booms
-    , scores : Scores
+    , score : Int
     , level : Int
     }
 
@@ -350,13 +340,8 @@ decodeState userId page =
         |> DP.requiredAt [ "state", "missiles", "entities" ] (Yarnballs.Missile.decode page.missiles)
         |> DP.requiredAt [ "state", "ships", "entities" ] (Yarnballs.Ship.decode userId page.ships)
         |> DP.requiredAt [ "state", "enemies", "explosions", "entities" ] (Yarnballs.Boom.decode page.tick page.booms)
-        |> DP.requiredAt [ "state", "score_by_ship" ] decodeScores
+        |> DP.requiredAt [ "state", "score" ] D.int
         |> DP.requiredAt [ "state", "level" ] D.int
-
-
-decodeScores : D.Decoder Scores
-decodeScores =
-    D.dict D.int
 
 
 type ReceivedEvent
@@ -534,7 +519,7 @@ viewStats page =
         , At.style "row-gap" "1em"
         ]
         [ H.div [] [ H.text "score" ]
-        , H.div [] [ H.text <| String.fromInt <| totalScore page.scores ]
+        , H.div [] [ H.text <| String.fromInt <| page.score ]
         , H.div [] [ H.text "level" ]
         , H.div [] [ H.text <| String.fromInt page.level ]
         ]
