@@ -182,8 +182,8 @@ defmodule Yarnballs.PlayerShip do
   end
 
   @health_recharge 0.005
-  # five minutes to respawn
-  @kick_delay 150_000
+  # 15 minute kick delay
+  @kick_delay 1000 * 60 * 15
 
   def update(player) do
     cond do
