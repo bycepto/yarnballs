@@ -103,12 +103,12 @@ defmodule Yarnballs.Enemy.Bouncer do
   end
 
   defimpl Yarnballs.PlayerCollidable do
-    @bouncer_repel_velocity 10
+    @repel_velocity 1000
 
     def collide_with(enemy, player) do
       new_angle = Yarnballs.Utils.repel_angle(enemy, player)
-      vel_x = @bouncer_repel_velocity * :math.cos(new_angle)
-      vel_y = @bouncer_repel_velocity * :math.sin(new_angle)
+      vel_x = @repel_velocity * :math.cos(new_angle)
+      vel_y = @repel_velocity * :math.sin(new_angle)
       %{player | vel_x: vel_x, vel_y: vel_y}
     end
   end
@@ -203,18 +203,18 @@ defmodule Yarnballs.Enemy.Rock do
   end
 
   defimpl Yarnballs.PlayerCollidable do
-    @rock_repel_velocity 2
-    @rock_base_damage 5
+    @repel_velocity 200
+    @base_damage 5
 
     def collide_with(enemy, player) do
       new_angle = Yarnballs.Utils.repel_angle(enemy, player)
-      vel_x = @rock_repel_velocity * :math.cos(new_angle)
-      vel_y = @rock_repel_velocity * :math.sin(new_angle)
+      vel_x = @repel_velocity * :math.cos(new_angle)
+      vel_y = @repel_velocity * :math.sin(new_angle)
       %{player | health: player.health - rock_damage(enemy), vel_x: vel_x, vel_y: vel_y}
     end
 
     defp rock_damage(%{scale: scale}) do
-      scale * @rock_base_damage
+      scale * @base_damage
     end
   end
 

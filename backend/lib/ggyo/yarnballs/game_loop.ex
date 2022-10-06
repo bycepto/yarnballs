@@ -21,8 +21,12 @@ defmodule Ggyo.Yarnballs.GameLoop do
     GenServer.cast(:game_loop, {:leave, id})
   end
 
-  def moved_ship(id, x, y, angle, thrusting) do
-    GenServer.cast(:game_loop, {:move_ship, id, x, y, angle, thrusting})
+  def turned_ship(id, vel_angle) do
+    GenServer.cast(:game_loop, {:turn_ship, id, vel_angle})
+  end
+
+  def thrusted_ship(id, vel_x, vel_y) do
+    GenServer.cast(:game_loop, {:thrust_ship, id, vel_x, vel_y})
   end
 
   def fire_missile(shooter_id, x, y, vel_x, vel_y, dead) do
@@ -49,8 +53,13 @@ defmodule Ggyo.Yarnballs.GameLoop do
   end
 
   @impl true
-  def handle_cast({:move_ship, id, x, y, angle, thrusting}, state) do
-    {:noreply, State.move_ship(state, id, x, y, angle, thrusting)}
+  def handle_cast({:turn_ship, id, vel_angle}, state) do
+    {:noreply, State.turn_ship(state, id, vel_angle)}
+  end
+
+  @impl true
+  def handle_cast({:thrust_ship, id, vel_x, vel_y}, state) do
+    {:noreply, State.thrust_ship(state, id, vel_x, vel_y)}
   end
 
   @impl true
@@ -71,8 +80,6 @@ defmodule Ggyo.Yarnballs.GameLoop do
   @impl true
   def code_change(_old_vsn, _state, _extra) do
     Logger.debug("reseting game state")
-
-    # TODO: use presence to determine which ships to keep?
 
     {:ok, State.init()}
   end

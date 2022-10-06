@@ -46,7 +46,7 @@ type alias Ships =
 
 init : Ships
 init =
-    { ship = UserShip Nothing 0 0 0 0 False 0 -fireShotCooldownTicks 0
+    { ship = UserShip Nothing 0 0 0 0 0 0 False -fireShotCooldownTicks 0
     , otherShips = []
     , texture = Nothing
     }
@@ -56,10 +56,11 @@ type alias UserShip =
     { name : Maybe String
     , x : Float
     , y : Float
+    , angle : Float
     , velX : Float
     , velY : Float
+    , velAngle : Float
     , thrusting : Bool
-    , angle : Float
     , lastFireTick : Float
     , health : Float
     }
@@ -112,15 +113,16 @@ handleDecoded ships otherShips partialUserShip =
                 Nothing ->
                     ships.ship
 
-                Just { name, velX, velY, health } ->
+                Just { name, x, y, angle, health } ->
                     let
                         ship =
                             ships.ship
                     in
                     { ship
                         | name = name
-                        , velX = ship.velX + velX
-                        , velY = ship.velY + velY
+                        , x = x
+                        , y = y
+                        , angle = angle
                         , health = health
                     }
     }
@@ -151,8 +153,9 @@ decodeOtherShip =
 
 type alias PartialUserShip =
     { name : Maybe String
-    , velX : Float
-    , velY : Float
+    , x : Float
+    , y : Float
+    , angle : Float
     , health : Float
     }
 
@@ -173,8 +176,9 @@ decodePartialShip : D.Decoder PartialUserShip
 decodePartialShip =
     D.succeed PartialUserShip
         |> DP.required "name" (D.nullable D.string)
-        |> DP.required "vel_x" D.float
-        |> DP.required "vel_y" D.float
+        |> DP.required "x" D.float
+        |> DP.required "y" D.float
+        |> DP.required "angle" D.float
         |> DP.required "health" D.float
 
 
@@ -223,6 +227,7 @@ fireShotSend topic ships =
 
 fireShotCooldownTicks : Float
 fireShotCooldownTicks =
+    -- TODO: move to server?
     8
 
 
@@ -242,22 +247,45 @@ fireShotVel =
 
 move : App.WebSocket.Topic -> Ships -> Cmd msg
 move topic ships =
+    Cmd.batch
+        [ thrust topic ships
+        , turn topic ships
+        ]
+
+
+thrust : App.WebSocket.Topic -> Ships -> Cmd msg
+thrust topic ships =
+    if ships.ship.thrusting then
+        App.WebSocket.send
+            eventToString
+            topic
+            ThrustedShip
+        <|
+            E.object
+                [ ( "vel_x", E.float ships.ship.velX )
+                , ( "vel_y", E.float ships.ship.velY )
+                ]
+
+    else
+        Cmd.none
+
+
+turn : App.WebSocket.Topic -> Ships -> Cmd msg
+turn topic ships =
     App.WebSocket.send
         eventToString
         topic
-        MovedShip
+        TurnedShip
     <|
         E.object
-            [ ( "x", E.float ships.ship.x )
-            , ( "y", E.float ships.ship.y )
-            , ( "angle", E.float ships.ship.angle )
-            , ( "thrusting", E.bool ships.ship.thrusting )
+            [ ( "vel_angle", E.float ships.ship.velAngle )
             ]
 
 
 type SentEvent
     = FiredShot
-    | MovedShip
+    | ThrustedShip
+    | TurnedShip
 
 
 eventToString : SentEvent -> String
@@ -266,8 +294,11 @@ eventToString s =
         FiredShot ->
             "fired_shot"
 
-        MovedShip ->
-            "moved_ship"
+        ThrustedShip ->
+            "thrusted_ship"
+
+        TurnedShip ->
+            "turned_ship"
 
 
 
@@ -285,39 +316,41 @@ handleUserShipKeyPresses keys ship =
         { x, y } =
             KA.arrows keys
 
-        thrusting =
-            y > 0
-
-        angle =
+        velAngle =
             if x /= 0 then
                 degrees (toFloat x * turnSpeed)
 
             else
                 0
 
+        thrusting =
+            y > 0
+
         ( velX, velY ) =
             if thrusting then
                 fromPolar ( acceleration, ship.angle )
 
             else
-                ( 0, 0 )
+                ( ship.velX, ship.velY )
     in
     { ship
-        | angle = ship.angle + angle
-        , velX = ship.velX + velX
-        , velY = ship.velY + velY
+        | velAngle = velAngle
+        , velX = velX
+        , velY = velY
         , thrusting = thrusting
     }
 
 
 turnSpeed : Float
 turnSpeed =
-    4.5
+    -- TODO: move to server?
+    18000
 
 
 acceleration : Float
 acceleration =
-    0.5
+    -- TODO: move to server?
+    20.0
 
 
 

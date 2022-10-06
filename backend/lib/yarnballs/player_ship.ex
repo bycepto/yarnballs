@@ -62,47 +62,41 @@ defmodule Yarnballs.PlayerShips do
     %{players | entities: entities}
   end
 
-  def move(players, id, x, y, angle, thrusting) do
-    {_, entities} =
-      Map.get_and_update(
+  def turn(players, id, vel_angle) do
+    entities =
+      map_update_existing(
         players.entities,
         id,
-        fn
-          nil ->
-            :pop
+        fn ship -> PlayerShip.turn(ship, vel_angle) end
+      )
 
-          ship ->
-            {nil, %{ship | x: x, y: y, vel_x: 0, vel_y: 0, angle: angle, thrusting: thrusting}}
-        end
+    %{players | entities: entities}
+  end
+
+  def thrust(players, id, vel_x, vel_y) do
+    entities =
+      map_update_existing(
+        players.entities,
+        id,
+        fn ship -> PlayerShip.thrust(ship, vel_x, vel_y) end
       )
 
     %{players | entities: entities}
   end
 
   def collide_with(players, id, thing) do
-    {_, entities} =
-      Map.get_and_update(
+    entities =
+      map_update_existing(
         players.entities,
         id,
-        fn
-          nil -> :pop
-          ship -> {nil, PlayerCollidable.collide_with(thing, ship)}
-        end
+        fn ship -> PlayerCollidable.collide_with(thing, ship) end
       )
 
     %{players | entities: entities}
   end
 
   def respawn(players, id) do
-    {_, entities} =
-      Map.get_and_update(
-        players.entities,
-        id,
-        fn
-          nil -> :pop
-          ship -> {nil, PlayerShip.respawn(ship)}
-        end
-      )
+    entities = map_update_existing(players.entities, id, &PlayerShip.respawn/1)
 
     %{players | entities: entities}
   end
@@ -118,9 +112,19 @@ defmodule Yarnballs.PlayerShips do
 
   defp maybe_update({id, player}) do
     case PlayerShip.update(player) do
-      :delete -> []
+      :pop -> []
       _ -> [{id, PlayerShip.update(player)}]
     end
+  end
+
+  defp map_update_existing(map, key, func) do
+    {_, result} =
+      Map.get_and_update(map, key, fn
+        nil -> :pop
+        value -> {nil, func.(value)}
+      end)
+
+    result
   end
 end
 
@@ -133,11 +137,14 @@ defmodule Yarnballs.PlayerShip do
   @type t :: %__MODULE__{
           id: binary,
           name: binary | nil,
+          updated_at: float,
           x: float,
           y: float,
           vel_x: float,
           vel_y: float,
           angle: float,
+          vel_angle: float,
+          thrusted_at: float,
           thrusting: boolean,
           health: float,
           destroyed_at: float | nil
@@ -145,11 +152,14 @@ defmodule Yarnballs.PlayerShip do
   @enforce_keys [
     :id,
     :name,
+    :updated_at,
     :x,
     :y,
     :vel_x,
     :vel_y,
     :angle,
+    :vel_angle,
+    :thrusted_at,
     :thrusting,
     :health,
     :score,
@@ -158,22 +168,28 @@ defmodule Yarnballs.PlayerShip do
   @derive {Jason.Encoder, only: @enforce_keys}
   defstruct @enforce_keys
 
+  def radius, do: 45.0
+
   defimpl Yarnballs.Collidable do
     def top_left(%{x: x, y: y}), do: {x, y}
-    def radius(_), do: 45.0
+    def radius(_), do: Yarnballs.PlayerShip.radius()
   end
 
   @max_health 100
+  @thrust_duration 50
 
   def spawn(id, name) do
     %__MODULE__{
       id: id,
       name: name,
+      updated_at: 0,
       x: 0,
       y: 0,
       vel_x: 0,
       vel_y: 0,
       angle: 0,
+      vel_angle: 0,
+      thrusted_at: -@thrust_duration,
       thrusting: false,
       health: @max_health,
       score: 0,
@@ -186,12 +202,51 @@ defmodule Yarnballs.PlayerShip do
   @kick_delay 1000 * 60 * 15
 
   def update(player) do
+    player
+    |> update_physics()
+    |> update_health()
+  end
+
+  def thrust(ship, vel_x, vel_y) do
+    thrusted_at = Yarnballs.Utils.now_milliseconds()
+    %{ship | vel_x: ship.vel_x + vel_x, vel_y: ship.vel_y + vel_y, thrusted_at: thrusted_at}
+  end
+
+  def turn(ship, vel_angle) do
+    %{ship | vel_angle: vel_angle}
+  end
+
+  @thrust_friction 0.05
+  # TODO: pass in as config params
+  @width 640
+  @height 480
+
+  defp update_physics(ship) do
+    updated_at = Yarnballs.Utils.now_milliseconds()
+    dt = updated_at - ship.updated_at
+    x = ship.x + ship.vel_x * (dt / 1000)
+    y = ship.y + ship.vel_y * (dt / 1000)
+    angle = ship.angle + ship.vel_angle * (:math.pi() / 180) * (dt / 1000)
+
+    %{
+      ship
+      | updated_at: updated_at,
+        x: Yarnballs.Utils.wrap_dim(x, @width, radius()),
+        y: Yarnballs.Utils.wrap_dim(y, @height, radius()),
+        angle: angle,
+        vel_x: ship.vel_x * (1 - @thrust_friction),
+        vel_y: ship.vel_y * (1 - @thrust_friction),
+        thrusting: updated_at - ship.thrusted_at < @thrust_duration
+    }
+  end
+
+  defp update_health(player) do
     cond do
       dead?(player) ->
         dt = Yarnballs.Utils.now_milliseconds() - player.destroyed_at
 
         if dt > @kick_delay do
-          :delete
+          :pop
         else
           player
         end

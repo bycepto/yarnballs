@@ -102,38 +102,6 @@ joined ws =
     App.WebSocket.joined topic ws
 
 
-type alias Entity a =
-    { a
-        | x : Float
-        , y : Float
-        , velX : Float
-        , velY : Float
-    }
-
-
-handleEntityPhysicsWithFriction : Entity a -> Entity a
-handleEntityPhysicsWithFriction entity =
-    { entity
-        | x = entity.x + entity.velX
-        , y = entity.y + entity.velY
-        , velX = entity.velX * (1 - friction)
-        , velY = entity.velY * (1 - friction)
-    }
-
-
-wrap : Entity a -> Entity a
-wrap entity =
-    { entity
-        | x = wrapDim entity.x width (Yarnballs.Ship.width / 2)
-        , y = wrapDim entity.y height (Yarnballs.Ship.height / 2)
-    }
-
-
-wrapDim : Float -> Float -> Float -> Float
-wrapDim value limit offset =
-    toFloat (modBy (round limit) (round (value + offset))) - offset
-
-
 type alias Textured a =
     { a
         | texture : Maybe VT.Texture
@@ -362,23 +330,7 @@ handleFrameUpdate : Page -> Page
 handleFrameUpdate page =
     page
         |> handleKeyPresses
-        |> handlePhysics
         |> updateTick
-
-
-handlePhysics : Page -> Page
-handlePhysics page =
-    -- TODO: move to Ship module?
-    let
-        ships =
-            page.ships
-    in
-    { page
-        | ships =
-            { ships
-                | ship = (wrap << handleEntityPhysicsWithFriction) ships.ship
-            }
-    }
 
 
 updateTick : Page -> Page
@@ -394,11 +346,6 @@ handleKeyPresses page =
     { page
         | ships = Yarnballs.Ship.handleKeyPresses page.pressedKeys page.ships
     }
-
-
-friction : Float
-friction =
-    0.05
 
 
 

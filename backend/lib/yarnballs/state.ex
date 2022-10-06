@@ -58,8 +58,12 @@ defmodule Yarnballs.State do
     %{state | ships: PlayerShips.remove(state.ships, id)}
   end
 
-  def move_ship(state, id, x, y, angle, thrusting) do
-    %{state | ships: PlayerShips.move(state.ships, id, x, y, angle, thrusting)}
+  def turn_ship(state, id, vel_angle) do
+    %{state | ships: PlayerShips.turn(state.ships, id, vel_angle)}
+  end
+
+  def thrust_ship(state, id, vel_x, vel_y) do
+    %{state | ships: PlayerShips.thrust(state.ships, id, vel_x, vel_y)}
   end
 
   def spawn_missile(state, shooter_id, x, y, vel_x, vel_y, dead) do

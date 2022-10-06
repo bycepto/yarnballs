@@ -20,12 +20,17 @@ defmodule GgyoWeb.YarnballsChannel do
     {:noreply, socket}
   end
 
+  def handle_in("turned_ship", %{"vel_angle" => vel_angle}, socket) do
+    Ggyo.Yarnballs.GameLoop.turned_ship(socket.assigns.user.id, vel_angle)
+    {:noreply, socket}
+  end
+
   def handle_in(
-        "moved_ship",
-        %{"x" => x, "y" => y, "angle" => angle, "thrusting" => thrusting},
+        "thrusted_ship",
+        %{"vel_x" => vel_x, "vel_y" => vel_y},
         socket
       ) do
-    Ggyo.Yarnballs.GameLoop.moved_ship(socket.assigns.user.id, x, y, angle, thrusting)
+    Ggyo.Yarnballs.GameLoop.thrusted_ship(socket.assigns.user.id, vel_x, vel_y)
     {:noreply, socket}
   end
 
