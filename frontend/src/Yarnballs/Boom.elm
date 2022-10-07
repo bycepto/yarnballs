@@ -12,8 +12,11 @@ module Yarnballs.Boom exposing
 -}
 
 import Canvas as V
+import Canvas.Settings as VS
 import Canvas.Settings.Advanced as VA
+import Canvas.Settings.Text as VW
 import Canvas.Texture as VT
+import Color
 import Dict exposing (Dict)
 import Json.Decode as D
 import Json.Decode.Pipeline as DP
@@ -109,18 +112,29 @@ render tick booms =
             []
 
         Just texture ->
-            List.map (renderOneBoom texture tick) (Dict.values booms.entities)
+            List.map
+                (renderOneBoomWithPoint texture tick)
+                (Dict.values booms.entities)
 
 
-renderOneBoom : VT.Texture -> Float -> Boom -> V.Renderable
-renderOneBoom texture tick boom =
-    V.texture
+renderOneBoomWithPoint : VT.Texture -> Float -> Boom -> V.Renderable
+renderOneBoomWithPoint texture tick boom =
+    V.group
         [ VA.transform
             [ VA.translate
                 ((boom.size - width) / 2)
                 ((boom.size - height) / 2)
             ]
         ]
+        [ renderOneBoom texture tick boom
+        , renderScorePoint tick boom
+        ]
+
+
+renderOneBoom : VT.Texture -> Float -> Boom -> V.Renderable
+renderOneBoom texture tick boom =
+    V.texture
+        []
         ( boom.x, boom.y )
         (boomSprite texture tick boom)
 
@@ -134,6 +148,20 @@ boomSprite texture tick boom =
         , height = height
         }
         texture
+
+
+renderScorePoint : Float -> Boom -> V.Renderable
+renderScorePoint tick boom =
+    V.text
+        [ VW.align VW.Center
+        , VW.baseLine VW.Middle
+        , VS.stroke Color.green
+        ]
+        ( boom.x + width / 2
+        , boom.y + height / 2 - min 20 (tick - boom.startTick)
+        )
+    <|
+        "+1"
 
 
 width : Float

@@ -455,13 +455,31 @@ renderUserHealth : Float -> UserShip -> V.Renderable
 renderUserHealth tick ship =
     V.group
         []
-        [ V.shapes
+    <|
+        List.filterMap
+            identity
+            [ renderHealthContainer ship
+            , renderHealthBar ship
+            , renderFireToRespawn tick ship
+            , renderScorePoint tick ship
+            ]
+
+
+renderHealthContainer : UserShip -> Maybe V.Renderable
+renderHealthContainer ship =
+    Just <|
+        V.shapes
             [ VS.fill Color.white
             , VS.stroke Color.black
             ]
             [ V.rect ( ship.x, ship.y + height + 20 ) width 5
             ]
-        , V.shapes
+
+
+renderHealthBar : UserShip -> Maybe V.Renderable
+renderHealthBar ship =
+    Just <|
+        V.shapes
             [ VS.fill <|
                 if ship.health < 25 then
                     Color.red
@@ -479,16 +497,37 @@ renderUserHealth tick ship =
                 )
                 5
             ]
-        , V.text
-            [ VW.align VW.Center ]
-            ( ship.x + width / 2, ship.y + height + 40 )
-          <|
-            if dead ship && respawnAllowed tick ship then
+
+
+renderFireToRespawn : Float -> UserShip -> Maybe V.Renderable
+renderFireToRespawn tick ship =
+    if dead ship && respawnAllowed tick ship then
+        Just <|
+            V.text
+                [ VW.align VW.Center ]
+                ( ship.x + width / 2, ship.y + height + 40 )
                 "(fire to respawn)"
 
-            else
-                ""
-        ]
+    else
+        Nothing
+
+
+renderScorePoint : Float -> UserShip -> Maybe V.Renderable
+renderScorePoint tick ship =
+    if dead ship && not (respawnAllowed tick ship) then
+        Just <|
+            V.text
+                [ VW.align VW.Center
+                , VW.baseLine VW.Middle
+                , VS.stroke Color.red
+                ]
+                ( ship.x + width / 2
+                , ship.y + height / 2 + min 35 (tick - ship.diedTick)
+                )
+                "-50"
+
+    else
+        Nothing
 
 
 renderDisplayName : { a | name : Maybe String, x : Float, y : Float } -> V.Renderable
