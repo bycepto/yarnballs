@@ -29,7 +29,6 @@ import Json.Decode.Pipeline as DP
 import Json.Encode as E
 import Keyboard as K
 import Keyboard.Arrows as KA
-import Round
 import VitePluginHelper as VPH
 
 
@@ -411,15 +410,42 @@ renderUserShip hurt texture ship =
 
 renderUserHealth : UserShip -> V.Renderable
 renderUserHealth ship =
-    V.text
-        [ VW.align VW.Center ]
-        ( ship.x + width / 2, ship.y + height + 20 )
-    <|
-        if dead ship then
-            "dead (fire to respawn)"
+    V.group
+        []
+        [ V.shapes
+            [ VS.fill Color.white
+            , VS.stroke Color.black
+            ]
+            [ V.rect ( ship.x, ship.y + height + 20 ) width 5
+            ]
+        , V.shapes
+            [ VS.fill <|
+                if ship.health < 25 then
+                    Color.red
 
-        else
-            "shields: " ++ Round.round 0 ship.health ++ "%"
+                else
+                    Color.green
+            ]
+            [ V.rect
+                ( ship.x, ship.y + height + 20 )
+                (if dead ship then
+                    0
+
+                 else
+                    width * ship.health / 100
+                )
+                5
+            ]
+        , V.text
+            [ VW.align VW.Center ]
+            ( ship.x + width / 2, ship.y + height + 40 )
+          <|
+            if dead ship then
+                "(fire to respawn)"
+
+            else
+                ""
+        ]
 
 
 renderDisplayName : { a | name : Maybe String, x : Float, y : Float } -> V.Renderable
