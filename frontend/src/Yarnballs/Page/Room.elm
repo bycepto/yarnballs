@@ -17,7 +17,11 @@ import App.User exposing (UserId)
 import App.WebSocket exposing (WebSocket)
 import Browser.Events as BE
 import Canvas as V
+import Canvas.Settings as VS
+import Canvas.Settings.Advanced as VA
+import Canvas.Settings.Text as VW
 import Canvas.Texture as VT
+import Color
 import Css as C
 import Css.Animations as An
 import Html as UH
@@ -53,11 +57,36 @@ type alias Page =
 
     -- stats
     , score : Int
-    , level : Int
+    , level : Level
 
     -- effects
     , shakeFor : Int
     }
+
+
+type Level
+    = LevelUp Int Float
+    | LevelDown Int Float
+
+
+levelNumber : Level -> Int
+levelNumber level =
+    case level of
+        LevelUp n _ ->
+            n
+
+        LevelDown n _ ->
+            n
+
+
+levelTick : Level -> Float
+levelTick level =
+    case level of
+        LevelUp _ tick ->
+            tick
+
+        LevelDown _ tick ->
+            tick
 
 
 type alias Env a =
@@ -128,7 +157,7 @@ init =
     , missiles = Yarnballs.Missile.init
     , booms = Yarnballs.Boom.init
     , score = 0
-    , level = 0
+    , level = LevelUp 0 0
     , shakeFor = 0
     }
 
@@ -286,7 +315,15 @@ handleDecoded page state =
         , booms = state.booms
         , ships = state.ships
         , score = state.score
-        , level = state.level
+        , level =
+            if state.level < levelNumber page.level then
+                LevelDown state.level page.tick
+
+            else if state.level > levelNumber page.level then
+                LevelUp state.level page.tick
+
+            else
+                page.level
     }
 
 
@@ -468,7 +505,7 @@ viewStats page =
         [ H.div [] [ H.text "score" ]
         , H.div [] [ H.text <| String.fromInt <| page.score ]
         , H.div [] [ H.text "level" ]
-        , H.div [] [ H.text <| String.fromInt page.level ]
+        , H.div [] [ H.text <| String.fromInt <| levelNumber page.level ]
         ]
 
 
@@ -516,7 +553,38 @@ render page =
         , Yarnballs.Missile.render page.missiles
         , Yarnballs.Ship.render page.tick (page.shakeFor > 0) page.ships
         , Yarnballs.Boom.render page.tick page.booms
+        , renderLevel page.tick page.level
         ]
+
+
+renderLevel : Float -> Level -> List V.Renderable
+renderLevel tick level =
+    let
+        alpha =
+            max 0 (100 - (tick - levelTick level)) / 100
+
+        color =
+            case level of
+                LevelUp _ _ ->
+                    Color.black
+
+                LevelDown _ _ ->
+                    Color.red
+    in
+    if alpha > 0 then
+        [ V.text
+            [ VW.align VW.Center
+            , VW.baseLine VW.Middle
+            , VS.fill color
+            , VW.font { size = 144, family = "san-serif" }
+            , VA.alpha alpha
+            ]
+            ( width / 2, height / 2 )
+            ("Level " ++ String.fromInt (levelNumber level))
+        ]
+
+    else
+        []
 
 
 width : number
