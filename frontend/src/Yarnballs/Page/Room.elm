@@ -306,7 +306,7 @@ decodeState userId page =
     D.succeed State
         |> DP.requiredAt [ "state", "enemies" ] (Yarnballs.Enemy.decode page.enemies)
         |> DP.requiredAt [ "state", "missiles", "entities" ] (Yarnballs.Missile.decode page.missiles)
-        |> DP.requiredAt [ "state", "ships", "entities" ] (Yarnballs.Ship.decode userId page.ships)
+        |> DP.requiredAt [ "state", "ships", "entities" ] (Yarnballs.Ship.decode page.tick userId page.ships)
         |> DP.requiredAt [ "state", "enemies", "explosions", "entities" ] (Yarnballs.Boom.decode page.tick page.booms)
         |> DP.requiredAt [ "state", "score" ] D.int
         |> DP.requiredAt [ "state", "level" ] D.int
@@ -514,7 +514,7 @@ render page =
         [ [ V.clear ( 0, 0 ) width height ]
         , Yarnballs.Enemy.render page.tick page.enemies
         , Yarnballs.Missile.render page.missiles
-        , Yarnballs.Ship.render (page.shakeFor > 0) page.ships
+        , Yarnballs.Ship.render page.tick (page.shakeFor > 0) page.ships
         , Yarnballs.Boom.render page.tick page.booms
         ]
 

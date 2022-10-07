@@ -45,10 +45,26 @@ type alias Ships =
 
 init : Ships
 init =
-    { ship = UserShip Nothing 0 0 0 0 0 0 False -fireShotCooldownTicks 0
+    { ship = initShip
     , otherShips = []
     , texture = Nothing
     }
+
+
+initShip : UserShip
+initShip =
+    UserShip
+        Nothing
+        0
+        0
+        0
+        0
+        0
+        0
+        False
+        0
+        -fireShotCooldownTicks
+        -respawnDelay
 
 
 type alias UserShip =
@@ -60,8 +76,11 @@ type alias UserShip =
     , velY : Float
     , velAngle : Float
     , thrusting : Bool
-    , lastFireTick : Float
     , health : Float
+
+    -- effects
+    , lastFireTick : Float
+    , diedTick : Float
     }
 
 
@@ -95,16 +114,16 @@ dead ship =
 -- DECODE
 
 
-decode : UserId -> Ships -> D.Decoder Ships
-decode userId ships =
+decode : Float -> UserId -> Ships -> D.Decoder Ships
+decode tick userId ships =
     D.map2
-        (handleDecoded ships)
+        (handleDecoded tick ships)
         (decodeOtherShips userId)
         (decodePartialUserShip userId)
 
 
-handleDecoded : Ships -> List OtherShip -> Maybe PartialUserShip -> Ships
-handleDecoded ships otherShips partialUserShip =
+handleDecoded : Float -> Ships -> List OtherShip -> Maybe PartialUserShip -> Ships
+handleDecoded tick ships otherShips partialUserShip =
     { ships
         | otherShips = otherShips
         , ship =
@@ -112,18 +131,25 @@ handleDecoded ships otherShips partialUserShip =
                 Nothing ->
                     ships.ship
 
-                Just { name, x, y, angle, health } ->
-                    let
-                        ship =
-                            ships.ship
-                    in
-                    { ship
-                        | name = name
-                        , x = x
-                        , y = y
-                        , angle = angle
-                        , health = health
-                    }
+                Just partial ->
+                    fromPartialShip tick partial ships.ship
+    }
+
+
+fromPartialShip : Float -> PartialUserShip -> UserShip -> UserShip
+fromPartialShip tick { name, x, y, angle, health } ship =
+    { ship
+        | name = name
+        , x = x
+        , y = y
+        , angle = angle
+        , health = health
+        , diedTick =
+            if dead { health = health } && not (dead ship) then
+                tick
+
+            else
+                ship.diedTick
     }
 
 
@@ -187,13 +213,23 @@ decodePartialShip =
 
 fireShot : App.WebSocket.Topic -> Float -> Ships -> ( Ships, Cmd msg )
 fireShot topic tick ships =
-    if (tick - ships.ship.lastFireTick) > fireShotCooldownTicks then
+    if fireShotAllowed tick ships.ship then
         ( { ships | ship = fireShotUpdateTick tick ships.ship }
         , fireShotSend topic ships
         )
 
     else
         ( ships, Cmd.none )
+
+
+fireShotAllowed : Float -> UserShip -> Bool
+fireShotAllowed tick ship =
+    respawnAllowed tick ship && tick - ship.lastFireTick > fireShotCooldownTicks
+
+
+respawnAllowed : Float -> UserShip -> Bool
+respawnAllowed tick { diedTick } =
+    tick - diedTick > respawnDelay
 
 
 fireShotUpdateTick : Float -> UserShip -> UserShip
@@ -241,7 +277,14 @@ fireShotInitPosition ship =
 
 fireShotVel : Float
 fireShotVel =
+    -- TODO: move to server?
     500.0
+
+
+respawnDelay : Float
+respawnDelay =
+    -- TODO: move to server?
+    100
 
 
 move : App.WebSocket.Topic -> Ships -> Cmd msg
@@ -356,14 +399,14 @@ acceleration =
 -- RENDER
 
 
-render : Bool -> Ships -> List V.Renderable
-render hurt ships =
+render : Float -> Bool -> Ships -> List V.Renderable
+render tick hurt ships =
     case ships.texture of
         Nothing ->
             []
 
         Just texture ->
-            renderUserShip hurt texture ships.ship :: renderOtherShips texture ships.otherShips
+            renderUserShip tick hurt texture ships.ship :: renderOtherShips texture ships.otherShips
 
 
 width : Float
@@ -376,8 +419,8 @@ height =
     width
 
 
-renderUserShip : Bool -> VT.Texture -> UserShip -> V.Renderable
-renderUserShip hurt texture ship =
+renderUserShip : Float -> Bool -> VT.Texture -> UserShip -> V.Renderable
+renderUserShip tick hurt texture ship =
     let
         sprite =
             shipSprite texture ship
@@ -404,12 +447,12 @@ renderUserShip hurt texture ship =
             ( ship.x, ship.y )
             sprite
         , renderDisplayName ship
-        , renderUserHealth ship
+        , renderUserHealth tick ship
         ]
 
 
-renderUserHealth : UserShip -> V.Renderable
-renderUserHealth ship =
+renderUserHealth : Float -> UserShip -> V.Renderable
+renderUserHealth tick ship =
     V.group
         []
         [ V.shapes
@@ -440,7 +483,7 @@ renderUserHealth ship =
             [ VW.align VW.Center ]
             ( ship.x + width / 2, ship.y + height + 40 )
           <|
-            if dead ship then
+            if dead ship && respawnAllowed tick ship then
                 "(fire to respawn)"
 
             else
