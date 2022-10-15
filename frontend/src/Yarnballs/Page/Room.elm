@@ -12,6 +12,7 @@ module Yarnballs.Page.Room exposing
 {-| Represents the page for a Yarnballs room
 -}
 
+import App
 import App.AuthStatus exposing (AuthStatus)
 import App.User exposing (UserId)
 import App.WebSocket exposing (WebSocket)
@@ -91,14 +92,10 @@ levelTick level =
 
 type alias Env a =
     { a
-        | -- Http
-          auth : AuthStatus
-
-        -- WebSocket
-        , ws : WebSocket
-
-        -- Dev
+        | auth : AuthStatus
         , devMode : Bool
+        , width : Float
+        , ws : WebSocket
     }
 
 
@@ -414,58 +411,78 @@ subscribeKeyboard toMsg =
 -- VIEWS
 
 
-view : ToMsg msg -> Env a -> Page -> { title : String, content : H.Html msg }
-view toMsg env page =
+view : Env a -> ToMsg msg -> Page -> { title : String, content : H.Html msg }
+view env toMsg page =
     { title = "Yarnballs Room"
-    , content = viewBody toMsg env page
+    , content = viewBody env toMsg page
     }
 
 
-viewBody : ToMsg msg -> Env a -> Page -> H.Html msg
-viewBody toMsg env page =
+viewBody : Env a -> ToMsg msg -> Page -> H.Html msg
+viewBody env toMsg page =
     if not (joined env.ws) then
-        H.div [] [ H.text "Loading..." ]
+        viewLoading
 
     else
         case page.error of
             Just error ->
-                H.div
-                    []
-                    [ H.text <|
-                        "Error loading page"
-                            ++ (if env.devMode then
-                                    ": " ++ error
-
-                                else
-                                    "!"
-                               )
-                    ]
+                viewLoadingError env error
 
             Nothing ->
-                H.div
-                    [ -- flex
-                      At.style "display" "flex"
-                    , At.style "justify-content" "center"
-                    , At.style "align-items" "center"
-                    , At.style "column-gap" "1em"
+                viewLoaded env toMsg page
 
-                    -- size
-                    , At.style "width" "100%"
-                    , At.style "height" "100%"
 
-                    -- prevent scrolling
-                    , At.style "overflow-x" "hidden"
-                    , At.css <|
-                        if page.shakeFor > 0 then
-                            styleShake
+viewLoaded : Env a -> ToMsg msg -> Page -> H.Html msg
+viewLoaded env toMsg page =
+    H.div
+        [ At.css
+            [ -- size
+              C.width (C.pct 100)
+            , C.height (C.pct 100)
 
-                        else
-                            []
-                    ]
-                    [ viewStats page
-                    , H.fromUnstyled <| viewGame toMsg page
-                    , viewCredits
-                    ]
+            -- prevent scrolling
+            , C.overflowX C.hidden
+            ]
+
+        -- shake when damaged
+        , attrShake page
+        ]
+        [ H.div
+            [ attrScaleForMobile env
+            , At.css
+                [ -- flex
+                  C.displayFlex
+                , C.justifyContent C.center
+                , C.alignItems C.center
+                , C.property "column-gap" "1em"
+                ]
+            ]
+            [ viewStats page
+            , H.fromUnstyled <| viewGame toMsg page
+            , viewCredits
+            ]
+        ]
+
+
+attrScaleForMobile : { a | width : Float } -> H.Attribute msg
+attrScaleForMobile env =
+    At.css <|
+        if App.isMobileWidth env.width then
+            [ C.transform (C.scale 0.8)
+            ]
+
+        else
+            []
+
+
+attrShake : { a | shakeFor : Int } -> H.Attribute msg
+attrShake page =
+    At.css <|
+        if page.shakeFor > 0 then
+            styleShake
+
+        else
+            []
 
 
 styleShake : List C.Style
@@ -490,6 +507,26 @@ styleShake =
     , C.property "animation-fill-mode" "both"
     , C.property "animation-iteration-count" "infinite"
     ]
+
+
+viewLoading : H.Html msg
+viewLoading =
+    H.div [] [ H.text "Loading..." ]
+
+
+viewLoadingError : Env a -> String -> H.Html msg
+viewLoadingError env errorMsg =
+    H.div
+        []
+        [ H.text <|
+            "Error loading page"
+                ++ (if env.devMode then
+                        ": " ++ errorMsg
+
+                    else
+                        "!"
+                   )
+        ]
 
 
 viewStats : Page -> H.Html msg

@@ -617,7 +617,7 @@ viewPage model =
         ( _, Just (YarnballsRoom page) ) ->
             let
                 doc =
-                    Yarnballs.Page.Room.view GotYarnballsPageRoomMsg model page
+                    Yarnballs.Page.Room.view model GotYarnballsPageRoomMsg page
             in
             viewWithNavbar
                 [ ( "Yarnballs", "yarnballs" ) ]
