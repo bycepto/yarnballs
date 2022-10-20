@@ -50,6 +50,8 @@ defmodule Ggyo.MixProject do
       {:corsica, "~> 1.1"},
       {:libcluster, "~> 3.3.0"},
       {:finch, "~> 0.7"},
+      # yarnballs
+      {:spatial_hash, "~> 0.1.6"},
       # private packages
       {:hanabi, git: "https://github.com/bycepto/hanabi.git"},
       {:cazadores, git: "https://github.com/bycepto/cazadores.git"},

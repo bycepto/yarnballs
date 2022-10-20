@@ -26,8 +26,9 @@ defprotocol Yarnballs.Enemy do
 end
 
 defimpl Yarnballs.Enemy, for: Any do
-  alias Yarnballs.Explosion
   alias Yarnballs.Collidable
+  alias Yarnballs.Environment, as: Env
+  alias Yarnballs.Explosion
 
   def update(enemy) do
     updated_at = Yarnballs.Utils.now_milliseconds()
@@ -38,15 +39,13 @@ defimpl Yarnballs.Enemy, for: Any do
     %{enemy | updated_at: updated_at, x: x, y: y}
   end
 
-  @width 640
-  @height 480
   @out_of_bounds 100
 
   def out_of_bounds?(enemy) do
     enemy.x < -@out_of_bounds ||
       enemy.y < -@out_of_bounds ||
-      enemy.x > @width + @out_of_bounds ||
-      enemy.y > @height + @out_of_bounds
+      enemy.x > Env.width() + @out_of_bounds ||
+      enemy.y > Env.height() + @out_of_bounds
   end
 
   def explode(enemy) do
@@ -59,6 +58,7 @@ defmodule Yarnballs.Enemy.Bouncer do
   Represents an enemy.
   """
 
+  alias Yarnballs.Environment, as: Env
   require Logger
 
   @type t :: %__MODULE__{
@@ -113,8 +113,6 @@ defmodule Yarnballs.Enemy.Bouncer do
     end
   end
 
-  @width 640
-  @height 480
   @padding 50
 
   @arc 50
@@ -128,14 +126,14 @@ defmodule Yarnballs.Enemy.Bouncer do
     {spawn_x, spawn_y} =
       case Enum.random([:horizontal, :vertical]) do
         :horizontal ->
-          {Enum.random([-@padding, @width + @padding]), Enum.random(0..@height)}
+          {Enum.random([-@padding, Env.width() + @padding]), Enum.random(0..Env.height())}
 
         :vertical ->
-          {Enum.random(0..@width), Enum.random([-@padding, @height + @padding])}
+          {Enum.random(0..Env.width()), Enum.random([-@padding, Env.height() + @padding])}
       end
 
-    center_x = @width / 2
-    center_y = @height / 2
+    center_x = Env.width() / 2
+    center_y = Env.height() / 2
     angle_adjustment = :math.pi() * Enum.random(-@arc..@arc) / 180
     angle = :math.atan2(center_y - spawn_y, center_x - spawn_x) + angle_adjustment
     vel_x = Enum.random(min_vel..max_vel) * :math.cos(angle)
@@ -157,6 +155,7 @@ defmodule Yarnballs.Enemy.Rock do
   Represents an enemy.
   """
 
+  alias Yarnballs.Environment, as: Env
   require Logger
 
   @type t :: %__MODULE__{
@@ -218,8 +217,6 @@ defmodule Yarnballs.Enemy.Rock do
     end
   end
 
-  @width 640
-  @height 480
   @padding 50
 
   @arc 50
@@ -231,14 +228,14 @@ defmodule Yarnballs.Enemy.Rock do
     {spawn_x, spawn_y} =
       case Enum.random([:horizontal, :vertical]) do
         :horizontal ->
-          {Enum.random([-@padding, @width + @padding]), Enum.random(0..@height)}
+          {Enum.random([-@padding, Env.width() + @padding]), Enum.random(0..Env.height())}
 
         :vertical ->
-          {Enum.random(0..@width), Enum.random([-@padding, @height + @padding])}
+          {Enum.random(0..Env.width()), Enum.random([-@padding, Env.height() + @padding])}
       end
 
-    center_x = @width / 2
-    center_y = @height / 2
+    center_x = Env.width() / 2
+    center_y = Env.height() / 2
     angle_adjustment = :math.pi() * Enum.random(-@arc..@arc) / 180
     angle = :math.atan2(center_y - spawn_y, center_x - spawn_x) + angle_adjustment
 

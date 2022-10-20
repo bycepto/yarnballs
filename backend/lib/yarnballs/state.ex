@@ -4,22 +4,22 @@ defmodule Yarnballs.State do
   """
   require Logger
 
+  alias Yarnballs.Collider
+  alias Yarnballs.CollisionSpace
+  alias Yarnballs.Enemies
   alias Yarnballs.Missiles
   alias Yarnballs.PlayerShips
   alias Yarnballs.PlayerShip
-  alias Yarnballs.Enemies
-  alias Yarnballs.Collider
+  alias Yarnballs.Environment, as: Env
   alias Yarnballs.Spawner
 
   @type t :: %__MODULE__{
-          collisions_updated_at: integer(),
           missiles: Missiles.t(),
           enemies: Enemies.t(),
           ships: PlayerShips.t()
         }
 
   @enforce_keys [
-    :collisions_updated_at,
     :missiles,
     :enemies,
     :ships
@@ -30,7 +30,6 @@ defmodule Yarnballs.State do
     def encode(state, opts) do
       state
       |> Map.take([
-        :collisions_updated_at,
         :missiles,
         :enemies,
         :ships
@@ -43,7 +42,6 @@ defmodule Yarnballs.State do
 
   def init() do
     %__MODULE__{
-      collisions_updated_at: 0,
       missiles: Missiles.init(),
       enemies: Enemies.init(),
       ships: PlayerShips.init()
@@ -135,54 +133,52 @@ defmodule Yarnballs.State do
     |> update_collisions()
   end
 
-  @collision_update_interval 100
-
   defp update_collisions(state) do
-    collisions_updated_at = Yarnballs.Utils.now_milliseconds()
-    dt = collisions_updated_at - state.collisions_updated_at
+    spaces = collision_spaces(state)
 
-    if dt > @collision_update_interval do
-      {enemy_ids, missiles} =
-        for e <- state.enemies.entities,
-            missile <- state.missiles.entities,
-            enemy_missile_collision?(e, missile),
-            !missile.dead do
-          {e.id, missile}
-        end
-        |> Enum.unzip()
+    # TODO: come up with better names for entity x entity collision variables
+    {emcs, escs} =
+      for {_, space} <- spaces, map_size(space) > 1, reduce: {MapSet.new(), MapSet.new()} do
+        {emcs_acc, escs_acc} ->
+          {
+            MapSet.union(emcs_acc, MapSet.new(CollisionSpace.emc(space))),
+            MapSet.union(escs_acc, MapSet.new(CollisionSpace.esc(space)))
+          }
+      end
 
-      ships =
-        for e <- state.enemies.entities,
-            p <- PlayerShips.entities(state.ships),
-            enemy_player_collision?(e, p),
-            !PlayerShip.dead?(p) do
-          {p, e}
-        end
-        |> Enum.reduce(
-          state.ships,
-          fn {p, e}, ships -> PlayerShips.collide_with(ships, p.id, e) end
-        )
+    {enemies, missiles} = Enum.unzip(emcs)
 
-      scores = Enum.frequencies_by(missiles, & &1.shooter_id)
+    ships =
+      escs
+      |> Enum.reduce(
+        state.ships,
+        fn {e, s}, ships -> PlayerShips.collide_with(ships, s.id, e) end
+      )
 
-      %{
-        state
-        | collisions_updated_at: collisions_updated_at,
-          enemies: Enemies.remove(state.enemies, enemy_ids),
-          missiles: Missiles.remove(state.missiles, Enum.map(missiles, & &1.id)),
-          ships: PlayerShips.increase_scores(ships, scores)
-      }
-    else
+    scores = Enum.frequencies_by(missiles, & &1.shooter_id)
+
+    %{
       state
-    end
+      | enemies: Enemies.remove(state.enemies, Enum.map(enemies, & &1.id)),
+        missiles: Missiles.remove(state.missiles, Enum.map(missiles, & &1.id)),
+        ships: PlayerShips.increase_scores(ships, scores)
+    }
   end
 
-  defp enemy_missile_collision?(enemy, missile) do
-    Collider.collided?(enemy, missile)
+  defp collision_spaces(state) do
+    hash = spatial_hash()
+
+    enemies = Collider.spatial_hash(state.enemies.entities, hash, :enemies)
+    missiles = Collider.spatial_hash(state.missiles.entities, hash, :missiles)
+    ships = Collider.spatial_hash(Map.values(state.ships.entities), hash, :ships)
+
+    enemies
+    |> Map.merge(missiles, fn _key, m1, m2 -> Map.merge(m1, m2) end)
+    |> Map.merge(ships, fn _key, m1, m2 -> Map.merge(m1, m2) end)
   end
 
-  defp enemy_player_collision?(enemy, ship) do
-    Collider.collided?(enemy, ship)
+  defp spatial_hash do
+    [{0, Env.width(), 50}, {0, Env.height(), 50}]
   end
 
   defp update_entities(state) do

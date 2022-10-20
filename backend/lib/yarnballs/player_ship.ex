@@ -132,6 +132,8 @@ defmodule Yarnballs.PlayerShip do
   @moduledoc """
   Represent ships operated by players.
   """
+
+  alias Yarnballs.Environment, as: Env
   require Logger
 
   @type t :: %__MODULE__{
@@ -217,9 +219,6 @@ defmodule Yarnballs.PlayerShip do
   end
 
   @thrust_friction 0.05
-  # TODO: pass in as config params
-  @width 640
-  @height 480
 
   defp update_physics(ship) do
     updated_at = Yarnballs.Utils.now_milliseconds()
@@ -231,8 +230,8 @@ defmodule Yarnballs.PlayerShip do
     %{
       ship
       | updated_at: updated_at,
-        x: Yarnballs.Utils.wrap_dim(x, @width, radius()),
-        y: Yarnballs.Utils.wrap_dim(y, @height, radius()),
+        x: Yarnballs.Utils.wrap_dim(x, Env.width(), radius()),
+        y: Yarnballs.Utils.wrap_dim(y, Env.height(), radius()),
         angle: angle,
         vel_x: ship.vel_x * (1 - @thrust_friction),
         vel_y: ship.vel_y * (1 - @thrust_friction),
