@@ -1,0 +1,24 @@
+# server
+server/_build/
+server/deps/
+server/.git/
+server/.gitignore
+server/dockerfile
+server/makefile
+server/README*
+server/test/
+server/priv/static/
+# yarnballs
+yarnballs/_build/
+yarnballs/deps/
+yarnballs/.git/
+yarnballs/.gitignore
+yarnballs/dockerfile
+yarnballs/makefile
+yarnballs/README*
+yarnballs/test/
+yarnballs/priv/static/
+# Rustler
+yarnballs/native/yarnballs/Cargo.lock
+yarnballs/native/yarnballs/target
+yarnballs/priv/native/*.so
