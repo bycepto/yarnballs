@@ -14,4 +14,5 @@ defmodule Yarnballs.Native do
   def update_bodies(_s), do: :erlang.nif_error(:nif_not_loaded)
   def level(_s), do: :erlang.nif_error(:nif_not_loaded)
   def total_score(_s), do: :erlang.nif_error(:nif_not_loaded)
+  def next_level_score(_s), do: :erlang.nif_error(:nif_not_loaded)
 end

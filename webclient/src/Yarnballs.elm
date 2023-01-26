@@ -347,7 +347,11 @@ viewGame env toMsg yb =
             , C.width (C.px Yarnballs.Game.width)
             , C.height (C.px Yarnballs.Game.height)
             , C.backgroundImage <|
-                C.url (VPH.asset "/src/images/yarnballs/nebula_blue.s2014.png")
+                if Nothing == yb.error then
+                    C.url (VPH.asset "/src/images/yarnballs/nebula_blue.s2014.png")
+
+                else
+                    C.url ""
             ]
         ]
         [ case Env.Auth.getStatus env.auth of

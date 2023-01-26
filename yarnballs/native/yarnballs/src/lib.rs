@@ -68,6 +68,11 @@ fn level(state: State) -> u32 {
     state.level()
 }
 
+#[rustler::nif]
+fn next_level_score(state: State) -> (u32, Option<u32>) {
+    state.next_level_score()
+}
+
 rustler::init!(
     "Elixir.Yarnballs.Native",
     [
@@ -81,5 +86,6 @@ rustler::init!(
         remove_ship,
         total_score,
         level,
+        next_level_score,
     ]
 );

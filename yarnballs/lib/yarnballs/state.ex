@@ -15,9 +15,13 @@ defmodule Yarnballs.State do
     alias Yarnballs.Native
 
     def encode(value, opts) do
+      {start_level_score, next_level_score} = Native.next_level_score(value)
+
       value
       |> Map.put(:level, Native.level(value))
       |> Map.put(:score, Native.total_score(value))
+      |> Map.put(:start_level_score, start_level_score)
+      |> Map.put(:next_level_score, next_level_score)
       |> Jason.Encode.map(opts)
     end
   end

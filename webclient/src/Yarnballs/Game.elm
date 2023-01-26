@@ -55,6 +55,8 @@ type alias Game =
     -- stats
     , score : Int
     , level : Level
+    , startLevelScore : Int
+    , nextLevelScore : Maybe Int
 
     -- effects
     , shakeFor : Int
@@ -114,6 +116,8 @@ init =
     , debrisTexture = Nothing
     , score = 0
     , level = LevelUp 0 0
+    , startLevelScore = 0
+    , nextLevelScore = Nothing
     , shakeFor = 0
     }
 
@@ -226,6 +230,8 @@ handleDecoded game state =
         , booms = state.booms
         , ships = state.ships
         , score = state.score
+        , startLevelScore = state.startLevelScore
+        , nextLevelScore = state.nextLevelScore
         , level =
             if state.level < levelNumber game.level then
                 LevelDown state.level game.tick
@@ -252,6 +258,8 @@ type alias State =
     , booms : Booms
     , score : Int
     , level : Int
+    , startLevelScore : Int
+    , nextLevelScore : Maybe Int
     }
 
 
@@ -264,6 +272,8 @@ decodeState userId game =
         |> DP.requiredAt [ "state", "enemies", "explosions", "entities" ] (Yarnballs.Boom.decode game.tick game.booms)
         |> DP.requiredAt [ "state", "score" ] D.int
         |> DP.requiredAt [ "state", "level" ] D.int
+        |> DP.requiredAt [ "state", "start_level_score" ] D.int
+        |> DP.requiredAt [ "state", "next_level_score" ] (D.nullable D.int)
 
 
 handleFrameUpdate : Game -> Game
@@ -349,6 +359,7 @@ render game =
         , renderDebris game.tick game.debrisTexture
         , renderLevel game.tick game.level
         , renderStats game
+        , renderProgressBar game
         ]
 
 
@@ -397,13 +408,7 @@ renderStats game =
         , VW.font { size = 18, family = "san-serif" }
         ]
         ( 5, 5 )
-      <|
-        String.concat
-            [ "level: "
-            , String.fromInt <| levelNumber game.level
-            , " | score: "
-            , String.fromInt game.score
-            ]
+        ("score: " ++ String.fromInt game.score)
     ]
 
 
@@ -435,6 +440,59 @@ renderLevel tick level =
 
     else
         []
+
+
+renderProgressBar : Game -> List V.Renderable
+renderProgressBar game =
+    case game.nextLevelScore of
+        Nothing ->
+            []
+
+        Just score ->
+            let
+                needScore =
+                    toFloat (score - game.startLevelScore)
+
+                currentScore =
+                    toFloat (game.score - game.startLevelScore)
+
+                pct =
+                    currentScore / needScore
+            in
+            [ V.shapes
+                [ VS.fill Color.lightGray
+                ]
+                [ V.rect
+                    ( width - progressBarWidth - 5, 5 )
+                    progressBarWidth
+                    progressBarHeight
+                ]
+            , V.shapes
+                [ VS.fill Color.darkGray
+                ]
+                [ V.rect
+                    ( width - progressBarWidth - 5, 5 )
+                    (progressBarWidth * pct)
+                    progressBarHeight
+                ]
+            , V.text
+                [ VS.fill Color.darkGreen
+                , VW.font { size = 18, family = "san-serif" }
+                , VW.align VW.Center
+                ]
+                ( width - (progressBarWidth / 2) - 5, 20 )
+                ("Level " ++ String.fromInt (levelNumber game.level))
+            ]
+
+
+progressBarWidth : number
+progressBarWidth =
+    150
+
+
+progressBarHeight : number
+progressBarHeight =
+    20
 
 
 width : number

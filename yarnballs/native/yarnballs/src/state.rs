@@ -56,23 +56,44 @@ impl State {
         self.level_with_spawner().0
     }
 
-    fn level_with_spawner(&self) -> (u32, Vec<Box<dyn spawn::Spawner>>) {
+    pub fn next_level_score(&self) -> (u32, Option<u32>) {
+        self.level_with_spawner().1
+    }
+
+    // TODO: Define a propery level struct. Stop repeating hard-coding level score goals.
+    fn level_with_spawner(&self) -> (u32, (u32, Option<u32>), Vec<Box<dyn spawn::Spawner>>) {
         match self.total_score() {
-            x if x < 15 => (0, spawn::spawners::a_few_bouncers()),
-            x if x < 30 => (1, spawn::spawners::a_few_rocks()),
-            x if x < 60 => (2, spawn::spawners::a_few_bouncers_and_rocks()),
-            x if x < 90 => (3, spawn::spawners::rocks()),
-            x if x < 120 => (4, spawn::spawners::bouncers_and_rocks()),
-            x if x < 200 => (5, spawn::spawners::bigger_rocks()),
-            x if x < 280 => (6, spawn::spawners::bouncers_and_bigger_rocks()),
-            x if x < 330 => (7, spawn::spawners::faster_rocks()),
-            x if x < 430 => (8, spawn::spawners::faster_rocks_and_bigger_rocks()),
-            x if x < 1000 => (9, spawn::spawners::bouncers_faster_rocks_and_bigger_rocks()),
+            x if x < 15 => (0, (0, Some(15)), spawn::spawners::a_few_bouncers()),
+            x if x < 30 => (1, (15, Some(30)), spawn::spawners::a_few_rocks()),
+            x if x < 60 => (
+                2,
+                (30, Some(60)),
+                spawn::spawners::a_few_bouncers_and_rocks(),
+            ),
+            x if x < 90 => (3, (60, Some(90)), spawn::spawners::rocks()),
+            x if x < 120 => (4, (90, Some(120)), spawn::spawners::bouncers_and_rocks()),
+            x if x < 200 => (5, (120, Some(200)), spawn::spawners::bigger_rocks()),
+            x if x < 280 => (
+                6,
+                (200, Some(280)),
+                spawn::spawners::bouncers_and_bigger_rocks(),
+            ),
+            x if x < 330 => (7, (280, Some(330)), spawn::spawners::faster_rocks()),
+            x if x < 430 => (
+                8,
+                (330, Some(430)),
+                spawn::spawners::faster_rocks_and_bigger_rocks(),
+            ),
+            x if x < 1000 => (
+                9,
+                (430, Some(1000)),
+                spawn::spawners::bouncers_faster_rocks_and_bigger_rocks(),
+            ),
             // TODO: these levels aren't supposed to be beatable
-            x if x < 2000 => (10, spawn::spawners::madness()),
+            x if x < 2000 => (10, (1000, Some(2000)), spawn::spawners::madness()),
             // TODO: this level has noticeable lag
-            x if x < 5000 => (11, spawn::spawners::overkill()),
-            _ => (12, spawn::spawners::overbounce()),
+            x if x < 5000 => (11, (2000, Some(5000)), spawn::spawners::overkill()),
+            _ => (12, (5000, None), spawn::spawners::overbounce()),
         }
     }
 
@@ -86,7 +107,7 @@ impl State {
     }
 
     fn spawn_enemies(&mut self) {
-        self.enemies.spawn(self.level_with_spawner().1);
+        self.enemies.spawn(self.level_with_spawner().2);
     }
 
     pub fn update_collisions<'a>(&mut self) {
