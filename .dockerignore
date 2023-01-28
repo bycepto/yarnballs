@@ -1,20 +1,23 @@
+.git/
+.gitignore
+Dockerfile
+README.md
+Makefile
+.ignore
+.tool-versions
+scripts/run_local.sh
 # server
 server/_build/
 server/deps/
-server/.git/
 server/.gitignore
-server/dockerfile
-server/makefile
+server/Makefile
 server/README*
 server/test/
 server/priv/static/
 # yarnballs
 yarnballs/_build/
 yarnballs/deps/
-yarnballs/.git/
 yarnballs/.gitignore
-yarnballs/dockerfile
-yarnballs/makefile
 yarnballs/README*
 yarnballs/test/
 yarnballs/priv/static/
@@ -22,3 +25,5 @@ yarnballs/priv/static/
 yarnballs/native/yarnballs/Cargo.lock
 yarnballs/native/yarnballs/target
 yarnballs/priv/native/*.so
+# webclient
+webclient

@@ -12,7 +12,7 @@ build:
 	docker build --tag="$(TAG)" .
 
 push-images: build
-	docker push bycepto/shmup
+	docker push "$(TAG)"
 
 # Backend app tasks
 
