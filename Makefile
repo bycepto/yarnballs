@@ -1,20 +1,10 @@
-TAG=bycepto/shmup
-
+.PHONY: dev
 dev:
-	./scripts/run_local.sh
+	cd web && mix phx.server
 
 test:
-	cd webclient && npm run build
-	cd server && mix test
+	cd web && mix test
 	cd yarnballs && mix test
 
 build:
-	docker build --tag="$(TAG)" .
-
-push-images: build
-	docker push "$(TAG)"
-
-# Backend app tasks
-
-server/%:
-	$(MAKE) -C server $*
+	$(MAKE) -C web shmup.tar.gz

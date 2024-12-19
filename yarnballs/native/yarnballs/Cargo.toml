@@ -12,7 +12,7 @@ crate-type = ["cdylib"]
 [dependencies]
 chrono = "0.4.23"
 rand = "0.8.5"
-rustler = "0.26.0"
+rustler = { version = "0.35.1", features = ["nif_version_2_17"] }
 
 [dependencies.uuid]
 version = "1.2.2"

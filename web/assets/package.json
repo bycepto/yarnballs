@@ -1,0 +1,11 @@
+{
+	"devDependencies": {
+		"@types/phoenix": "^1.6.6",
+		"esbuild": "^0.24.0",
+		"esbuild-plugin-elm": "^0.0.12"
+	},
+	"dependencies": {
+		"elm-canvas": "^2.2.4",
+		"phoenix": "link:../deps/phoenix"
+	}
+}

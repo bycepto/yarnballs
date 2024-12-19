@@ -22,7 +22,7 @@ defmodule Yarnballs.MixProject do
   defp deps do
     [
       {:jason, "~> 1.0"},
-      {:rustler, "~> 0.26.0"},
+      {:rustler, "~> 0.35"},
       # dev
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false}
     ]

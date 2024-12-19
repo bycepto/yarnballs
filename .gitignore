@@ -1,5 +1,3 @@
-# ag
 .ignore
-
-# asdf
 .tool-versions
+.envrc
