@@ -1,4 +1,5 @@
 shmup.tar.gz:
+	cd assets && pnpm install
 	MIX_ENV=prod mix assets.deploy
 	MIX_ENV=prod mix compile
 	mix phx.gen.release
