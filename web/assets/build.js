@@ -31,6 +31,10 @@ let opts = {
 if (deploy) {
   const phxHost = process.env.PHX_HOST;
 
+  if (!phxHost ) {
+    throw new Error("PHX_HOST must be provided")
+  }
+
   opts = {
     ...opts,
     minify: true,

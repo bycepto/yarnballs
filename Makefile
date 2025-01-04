@@ -2,7 +2,7 @@ VSN := $(shell cat web/mix.exs | grep version | sed -e 's/.*version: "\(.*\)",/\
 
 .PHONY: dev
 dev:
-	cd web && mix phx.server
+	cd web && mix deps.get --only dev && mix phx.server
 
 .PHONY: test
 test:
