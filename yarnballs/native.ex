@@ -2,7 +2,7 @@ defmodule Yarnballs.Native do
   @moduledoc """
   NIF bridge
   """
-  use Rustler, otp_app: :yarnballs, crate: :yarnballs
+  use Rustler, otp_app: :shmup, crate: :yarnballs
 
   # state
   def init_state(), do: :erlang.nif_error(:nif_not_loaded)

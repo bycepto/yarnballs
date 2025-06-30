@@ -5,7 +5,7 @@ defmodule Shmup.MixProject do
     [
       app: :shmup,
       version: "0.1.0",
-      elixir: "~> 1.14",
+      elixir: "~> 1.18.4",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
@@ -13,7 +13,7 @@ defmodule Shmup.MixProject do
       releases: [
         shmup: [
           include_executables_for: [:unix],
-          steps: [:assemble, :tar],
+          steps: [:assemble, :tar]
         ]
       ]
     ]
@@ -30,8 +30,8 @@ defmodule Shmup.MixProject do
   end
 
   # Specifies which paths to compile per environment.
-  defp elixirc_paths(:test), do: ["lib", "test/support"]
-  defp elixirc_paths(_), do: ["lib"]
+  defp elixirc_paths(:test), do: ["lib", "yarnballs", "test/support"]
+  defp elixirc_paths(_), do: ["lib", "yarnballs"]
 
   # Specifies your project dependencies.
   #
@@ -51,10 +51,10 @@ defmodule Shmup.MixProject do
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 0.20"},
       {:jason, "~> 1.2"},
-      {:dns_cluster, "~> 0.1.1"},
+      {:libcluster, "~> 3.5"},
       {:bandit, "~> 1.5"},
-      # local packages
-      {:yarnballs, path: "../yarnballs"},
+      {:rustler, "~> 0.35"},
+      # testing
       {:mix_test_watch, "~> 1.0", only: [:dev, :test]}
     ]
   end

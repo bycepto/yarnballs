@@ -7,9 +7,12 @@ defmodule Shmup.Application do
 
   @impl true
   def start(_type, _args) do
+    topologies = Application.get_env(:libcluster, :topologies, [])
+
     children = [
       ShmupWeb.Telemetry,
-      {DNSCluster, query: Application.get_env(:shmup, :dns_cluster_query) || :ignore},
+      # Clustering
+      {Cluster.Supervisor, [topologies, [name: Shmup.ClusterSupervisor]]},
       {Phoenix.PubSub, name: Shmup.PubSub},
       # Start a worker by calling: Shmup.Worker.start_link(arg)
       # {Shmup.Worker, arg},

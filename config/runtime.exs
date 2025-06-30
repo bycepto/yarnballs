@@ -50,6 +50,24 @@ if config_env() == :prod do
     ],
     secret_key_base: secret_key_base
 
+  # Clustering on fly.io
+  case System.fetch_env("FLY_APP_NAME") do
+    {:ok, fly_app_name} ->
+      config :libcluster,
+        topologies: [
+          fly6pn: [
+            strategy: Cluster.Strategy.DNSPoll,
+            config: [
+              query: "#{fly_app_name}.internal",
+              node_basename: fly_app_name
+            ]
+          ]
+        ]
+
+    :error ->
+      IO.puts("not deployed on fly.io - skipping clustering configuration")
+  end
+
   # ## SSL Support
   #
   # To get SSL working, you will need to add the `https` key
