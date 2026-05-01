@@ -52,3 +52,6 @@ shmup.tar.gz
 
 # secrets
 /.secrets/
+
+# native build artifacts
+/priv/native
