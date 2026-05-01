@@ -1,113 +1,41 @@
-# Find eligible builder and runner images on Docker Hub. We use Ubuntu/Debian
-# instead of Alpine to avoid DNS resolution issues in production.
-# https://hub.docker.com/r/hexpm/elixir/tags?page=1&name=ubuntu
-# https://hub.docker.com/_/ubuntu?tab=tags
-#
-# This file is based on these images:
-#
-#   - https://hub.docker.com/r/hexpm/elixir/tags - for the build image
-#   - https://hub.docker.com/_/debian?tab=tags&page=1&name=bullseye-20250610-slim - for the release image
-#   - https://pkgs.org/ - resource for finding needed packages
-#   - Ex: hexpm/elixir:1.18.4-erlang-28.0.1-debian-bullseye-20250610-slim
-#
-ARG ELIXIR_VERSION=1.18.4
-ARG OTP_VERSION=28.0.1
-ARG DEBIAN_VERSION=bookworm-20250610-slim
+FROM node:22-bookworm AS frontend
 
-ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
-ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
+WORKDIR /app/assets
 
-FROM ${BUILDER_IMAGE} AS builder
+RUN corepack enable pnpm
+RUN corepack prepare pnpm@9.15.0 --activate
 
-# install build dependencies
-RUN apt-get update -y && apt-get install -y build-essential git nodejs npm curl \
-    && apt-get clean && rm -f /var/lib/apt/lists/*_*
+COPY assets/package.json assets/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
-# install frontend dependencies
-ENV PNPM_HOME="/pnpm"
-ENV PNPM_STORE_DIR="/pnpm/store"
-ENV XDG_DATA_HOME="/pnpm/data"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN mkdir -p "$PNPM_HOME" "$PNPM_STORE_DIR" "$XDG_DATA_HOME" && \
-    npm install -g pnpm@9.15.9 elm
+COPY assets ./
+ARG APP_HOST
+ENV APP_HOST=${APP_HOST}
+RUN pnpm build -- --deploy
 
-# install rust
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
+FROM golang:1.24.2-bookworm AS builder
 
-# prepare build dir
 WORKDIR /app
 
-# install hex + rebar
-RUN mix local.hex --force && \
-    mix local.rebar --force
+COPY go.mod go.sum ./
+RUN go mod download
 
-# set build ENV
-ENV MIX_ENV="prod"
+COPY cmd ./cmd
+COPY internal ./internal
+COPY --from=frontend /app/cmd/server/static/assets ./cmd/server/static/assets
 
-# install mix dependencies
-COPY mix.exs mix.lock ./
-RUN mix deps.get --only $MIX_ENV
-RUN mkdir config
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/server ./cmd/server
 
-# copy compile-time config files before we compile dependencies
-# to ensure any relevant config change will trigger the dependencies
-# to be re-compiled.
-COPY config/config.exs config/${MIX_ENV}.exs config/
-RUN mix deps.compile
-
-COPY priv priv
-
-COPY lib lib
-COPY yarnballs yarnballs
-COPY native native
-
-COPY assets assets
-
-# compile assets
-RUN pnpm -C assets install --frozen-lockfile --store-dir="$PNPM_STORE_DIR"
-ARG PHX_HOST
-ENV PHX_HOST $PHX_HOST
-RUN mix assets.deploy
-
-# Compile the release
-RUN mix compile
-
-# Changes to config/runtime.exs don't require recompiling the code
-COPY config/runtime.exs config/
-
-COPY rel rel
-RUN mix release
-
-# start a new build stage so that the final image will only contain
-# the compiled release and other runtime necessities
-FROM ${RUNNER_IMAGE}
+FROM debian:bookworm-20250428-slim
 
 RUN apt-get update -y && \
-  apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates \
-  && apt-get clean && rm -f /var/lib/apt/lists/*_*
+  apt-get install -y ca-certificates && \
+  apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Set the locale
-RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
+WORKDIR /app
 
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
-ENV LC_ALL en_US.UTF-8
+COPY --from=builder /out/server /app/server
 
-WORKDIR "/app"
-RUN chown nobody /app
+ENV PORT=8080
 
-# set runner ENV
-ENV MIX_ENV="prod"
-
-# Only copy the final release from the build stage
-COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/shmup ./
-
-USER nobody
-
-# If using an environment that doesn't automatically reap zombie processes, it is
-# advised to add an init process such as tini via `apt-get install`
-# above and adding an entrypoint. See https://github.com/krallin/tini for details
-# ENTRYPOINT ["/tini", "--"]
-
-CMD ["/app/bin/server"]
+CMD ["/app/server"]

@@ -9,14 +9,11 @@ kill_signal = 'SIGTERM'
 
 [build]
   [build.args]
-    # PHX_HOST = 'yarnballs-bitter-field-3543.fly.dev'
-    PHX_HOST = 'yarnballs.ggyo.xyz'
+    APP_HOST = 'yarnballs.ggyo.xyz'
 
 [env]
-  # PHX_HOST = 'yarnballs-bitter-field-3543.fly.dev'
-  PHX_HOST = 'yarnballs.ggyo.xyz'
+  APP_HOST = 'yarnballs.ggyo.xyz'
   PORT = '8080'
-  POOL_SIZE = '5'
 
 [http_service]
   internal_port = 8080
@@ -28,8 +25,8 @@ kill_signal = 'SIGTERM'
 
   [http_service.concurrency]
     type = 'connections'
-    hard_limit = 1000
-    soft_limit = 1000
+    hard_limit = 150
+    soft_limit = 100
 
 [[vm]]
   memory = '256mb'

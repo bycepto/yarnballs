@@ -92,7 +92,7 @@ init toMsg baseUrl accessToken =
             ( { status = Loading
               , client = client
               }
-            , fetchMe toMsg token
+            , fetchMe toMsg token client
             )
 
 
@@ -142,9 +142,9 @@ update msg auth =
 {-| Sign in by obtaining an access token
 -}
 getToken : ToMsg msg -> String -> Client -> Cmd msg
-getToken toMsg displayName _ =
+getToken toMsg displayName client =
     Http.post
-        { url = B.absolute [ "api", "tokens" ] []
+        { url = apiUrl client [ "tokens" ]
         , body = getTokenBody displayName
         , expect = Http.expectJson (toMsg << RecvTokenResponse) Env.User.decode
         }
@@ -160,15 +160,20 @@ getTokenBody displayName =
 
 {-| Get user information with access token.
 -}
-fetchMe : ToMsg msg -> String -> Cmd msg
-fetchMe toMsg accessToken =
+fetchMe : ToMsg msg -> String -> Client -> Cmd msg
+fetchMe toMsg accessToken client =
     -- TODO: use Http.post
     Http.request
         { method = "GET"
         , headers = [ Http.header "Authorization" ("Bearer " ++ accessToken) ]
-        , url = B.absolute [ "api", "tokens" ] []
+        , url = apiUrl client [ "tokens" ]
         , body = Http.emptyBody
         , expect = Http.expectJson (toMsg << RecvTokenResponse) Env.User.decode
         , timeout = Nothing
         , tracker = Nothing
         }
+
+
+apiUrl : Client -> List String -> String
+apiUrl (Client { baseUrl }) paths =
+    B.crossOrigin baseUrl ("api" :: paths) []

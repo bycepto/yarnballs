@@ -4,6 +4,7 @@ const ElmPlugin = require('esbuild-plugin-elm');
 const args = process.argv.slice(2);
 const watch = args.includes('--watch');
 const deploy = args.includes('--deploy');
+const devPort = Number(process.env.STATIC_PORT || "3000");
 
 const loader = {
   '.ico': 'file',
@@ -21,28 +22,28 @@ let opts = {
   bundle: true,
   logLevel: "info",
   target: "es2017",
-  outdir: "../priv/static/assets",
+  outdir: "../cmd/server/static/assets",
   external: ["*.css", "images/*"],
-  nodePaths: ["../deps"],
   loader: loader,
   plugins: plugins,
 };
 
 if (deploy) {
-  const phxHost = process.env.PHX_HOST;
+  const appHost = process.env.APP_HOST;
+  const appScheme = process.env.APP_SCHEME || "https";
+  const wsScheme = appScheme === "https" ? "wss" : "ws";
 
-  if (!phxHost ) {
-    throw new Error("PHX_HOST must be provided")
+  if (!appHost ) {
+    throw new Error("APP_HOST must be provided")
   }
 
   opts = {
     ...opts,
     minify: true,
     define: {
-      'process.env.PHX_MODE': '"production"',
-      // TODO remove
-      'process.env.PHX_BASE_HTTP_URL': `"https://${phxHost}/api"`,
-      'process.env.PHX_BASE_WS_URL': `"wss://${phxHost}/socket"`,
+      'process.env.APP_MODE': '"production"',
+      'process.env.BASE_HTTP_URL': `"${appScheme}://${appHost}"`,
+      'process.env.BASE_WS_URL': `"${wsScheme}://${appHost}/ws"`,
     },
   };
 }
@@ -52,16 +53,16 @@ if (watch) {
     ...opts,
     sourcemap: "inline",
     define: {
-      'process.env.PHX_MODE': '"development"',
-      // TODO remove
-      'process.env.PHX_BASE_HTTP_URL': '"http://localhost:4000/socket"',
-      'process.env.PHX_BASE_WS_URL': '"ws://localhost:4000/socket"',
+      'process.env.APP_MODE': '"development"',
+      'process.env.BASE_HTTP_URL': '"http://localhost:8080"',
+      'process.env.BASE_WS_URL': '"ws://localhost:8080/ws"',
     },
   };
   esbuild
     .context(opts)
     .then((ctx) => {
       ctx.watch();
+      ctx.serve({ port: devPort, servedir: "../cmd/server/static" });
     })
     .catch((_error) => {
       process.exit(1);

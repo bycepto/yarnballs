@@ -5,9 +5,9 @@ import "elm-canvas";
 // Constants
 
 const DISPLAY_NAME_KEY = "user_display_name";
-const ACCESS_TOKEN_KEY = "phx_access";
+const ACCESS_TOKEN_KEY = "yb_access_token";
 
-const DEV_MODE = process.env.PHX_MODE == "development";
+const DEV_MODE = process.env.APP_MODE == "development";
 
 // log messages in dev mode
 const log = (msg) => {
@@ -30,7 +30,7 @@ const app = Elm.Main.init({
   node: document.getElementById("main"),
   flags: {
     // One-time init - TODO: perhaps this can be specified as "config"?
-    baseUrl: process.env.PHX_BASE_HTTP_URL,
+    baseUrl: process.env.BASE_HTTP_URL,
     devMode: DEV_MODE,
     accessToken: accessToken(),
   },

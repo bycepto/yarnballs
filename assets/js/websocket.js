@@ -1,10 +1,32 @@
-import { Socket } from "phoenix";
-
 const defaultLog = console.log;
 
 const setupWebSocket = (app, log = defaultLog) => {
   let socket = null;
   let channels = {};
+  let pendingStateMessage = null;
+  let stateFlushScheduled = false;
+  const leaveTopicPort = app.ports.leaveTopic;
+  const confirmLeftTopicPort = app.ports.confirmLeftTopic;
+
+  const flushStateMessage = () => {
+    stateFlushScheduled = false;
+
+    if (!pendingStateMessage) {
+      return;
+    }
+
+    app.ports.messageReceiver.send(pendingStateMessage);
+    pendingStateMessage = null;
+  };
+
+  const scheduleStateFlush = () => {
+    if (stateFlushScheduled) {
+      return;
+    }
+
+    stateFlushScheduled = true;
+    requestAnimationFrame(flushStateMessage);
+  };
 
   const joinTopic = (topic) => {
     if (topic in channels) {
@@ -13,50 +35,44 @@ const setupWebSocket = (app, log = defaultLog) => {
       return;
     }
 
-    const channel = socket.channel(topic);
-
-    // TODO: check if join is successful
-    channel.join().receive("ok", (info) => {
-      // Add channel and report to app
-      // TODO: can we just use presence for this?
-      log(`joined topic: ${topic}`);
-      channels[topic] = channel;
-      app.ports.confirmJoinedTopic.send(topic);
-
-      // Channels will tell us what events we should listen for.
-      if (info.events) {
-        info.events.forEach((event) => {
-          channel.on(event, (payload) => {
-            log(`sending event to elm: ${event}`);
-            app.ports.messageReceiver.send({
-              event: event,
-              topic: topic,
-              payload: payload,
-            });
-          });
-        });
-      }
-    });
+    socket.send(
+      JSON.stringify({
+        type: "join",
+        topic,
+      }),
+    );
   };
 
   const leaveTopic = (topic) => {
     if (topic in channels) {
-      channels[topic].leave().receive("ok", () => {
-        // Remove channel and report to app
-        log(`left topic:${topic}`);
-        delete channels[topic];
-        app.ports.confirmLeftTopic.send(topic);
-      });
+      socket.send(
+        JSON.stringify({
+          type: "leave",
+          topic,
+        }),
+      );
+      log(`left topic:${topic}`);
+      delete channels[topic];
+      if (confirmLeftTopicPort) {
+        confirmLeftTopicPort.send(topic);
+      }
     }
   };
 
   const sendMessage = ({ topic, event, payload }) => {
-    // TODO: ensure topic exists
-    channels[topic]
-      .push(event, payload)
-      .receive("ok", (payload) => log("phoenix replied:", payload))
-      .receive("error", (err) => log("phoenix errored", err))
-      .receive("timeout", () => log("timed out pushing"));
+    if (!(topic in channels)) {
+      log(`cannot send message to topic before join: ${topic}`);
+      return;
+    }
+
+    socket.send(
+      JSON.stringify({
+        type: "event",
+        topic,
+        event,
+        payload,
+      }),
+    );
   };
 
   // // Connect & disconnect
@@ -69,35 +85,74 @@ const setupWebSocket = (app, log = defaultLog) => {
   // });
 
   app.ports.connectToSocket.subscribe(({ token }) => {
-    if (socket && socket.isConnected()) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
       app.ports.confirmSocketOpen.send(true);
       return;
     }
 
-    socket = new Socket(process.env.PHX_BASE_WS_URL, {
-      params: { token },
-    });
-    socket.connect();
+    const url = new URL(process.env.BASE_WS_URL);
+    url.searchParams.set("token", token);
+    socket = new WebSocket(url);
 
-    socket.onOpen(() => {
+    socket.addEventListener("open", () => {
       app.ports.joinTopic.subscribe(joinTopic);
-      // app.ports.leaveTopic.subscribe(leaveTopic);
+      if (leaveTopicPort) {
+        leaveTopicPort.subscribe(leaveTopic);
+      }
       app.ports.sendMessage.subscribe(sendMessage);
 
       app.ports.confirmSocketOpen.send(true);
       log("Socket open!");
     });
 
-    socket.onClose(() => {
+    socket.addEventListener("message", ({ data }) => {
+      const msg = JSON.parse(data);
+
+      switch (msg.type) {
+        case "join_ack":
+          log(`joined topic: ${msg.topic}`);
+          channels[msg.topic] = { events: msg.events || [] };
+          app.ports.confirmJoinedTopic.send(msg.topic);
+          break;
+
+        case "message":
+          const eventMessage = {
+            event: msg.event,
+            topic: msg.topic,
+            payload: msg.payload,
+          };
+
+          if (msg.event === "requested_state") {
+            pendingStateMessage = eventMessage;
+            scheduleStateFlush();
+            break;
+          }
+
+          app.ports.messageReceiver.send(eventMessage);
+          break;
+
+        case "error":
+          log(`websocket error: ${msg.error}`);
+          break;
+
+        default:
+          log(`ignored websocket message type: ${msg.type}`);
+      }
+    });
+
+    socket.addEventListener("close", () => {
       app.ports.joinTopic.unsubscribe(joinTopic);
-      // app.ports.leaveTopic.unsubscribe(leaveTopic);
+      if (leaveTopicPort) {
+        leaveTopicPort.unsubscribe(leaveTopic);
+      }
       app.ports.sendMessage.unsubscribe(sendMessage);
 
       for (const topic in channels) {
-        // TODO: Confirm left?
-        channels[topic].leave();
+        delete channels[topic];
       }
       channels = {};
+      pendingStateMessage = null;
+      stateFlushScheduled = false;
 
       app.ports.confirmSocketDisconnected.send(true);
       log("Socket disconnected!");

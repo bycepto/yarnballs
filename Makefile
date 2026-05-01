@@ -1,24 +1,41 @@
-VSN := $(shell cat web/mix.exs | grep version | sed -e 's/.*version: "\(.*\)",/\1/')
+GOCACHE ?= /tmp/gocache
+
+.PHONY: dev-go
+dev-go:
+	STATIC_URL=http://localhost:3000 go run ./cmd/server
+
+.PHONY: dev-frontend
+dev-frontend:
+	cd assets && pnpm dev
 
 .PHONY: dev
 dev:
-	mix deps.get --only dev && mix phx.server
+	bash etc/scripts/dev.sh
 
-.PHONY: test
-test:
-	mix deps.get --only test && mix test
+.PHONY: test-go
+test-go:
+	GOCACHE=$(GOCACHE) go test ./...
+
+.PHONY: generate-token-signing-key
+generate-token-signing-key:
+	GOCACHE=$(GOCACHE) go run ./cmd/generate_token_signing_key
+
+.PHONY: build-frontend
+build-frontend:
+	cd assets && APP_HOST=localhost:8080 pnpm build -- --deploy
+
+.PHONY: build-go
+build-go:
+	GOCACHE=$(GOCACHE) go build ./cmd/server
 
 .PHONY: build
-build:
-	$(MAKE) web/_build/prod/shmup-$(VSN).tar.gz
+build: build-frontend build-go
 
-_build/prod/shmup-%.tar.gz:
-	mix deps.get --only prod
-	cd assets && pnpm install
-	MIX_ENV=prod mix assets.deploy
-	MIX_ENV=prod mix compile
-	MIX_ENV=prod mix phx.gen.release
-	MIX_ENV=prod mix release --overwrite
+.PHONY: prod-local
+prod-local:
+	cd assets && APP_HOST=localhost:8080 APP_SCHEME=http pnpm build -- --deploy
+	GOCACHE=$(GOCACHE) go build ./cmd/server
+	./server
 
 # FLY.IO
 
