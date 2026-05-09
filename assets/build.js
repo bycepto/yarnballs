@@ -12,7 +12,10 @@ const loader = {
 };
 
 const plugins = [
-  ElmPlugin(),
+  ElmPlugin({
+    debug: !deploy && watch,
+    optimize: deploy,
+  }),
 ];
 
 let opts = {
