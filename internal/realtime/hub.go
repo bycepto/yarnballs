@@ -197,6 +197,16 @@ func (h *Hub) processClientMessage(client *Client, msg inboundMessage) ([]interf
 			h.game.ThrustShip(client.user.ID)
 		case "fired_shot":
 			h.game.FireMissile(client.user.ID)
+		case "resized_world":
+			var payload struct {
+				Width  float64 `json:"width"`
+				Height float64 `json:"height"`
+			}
+			if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+				return nil, err
+			}
+			h.game.SetWorldSize(payload.Width, payload.Height)
+			h.broadcastState()
 		default:
 			return []interface{}{outboundError{Type: "error", Error: "unknown event"}}, nil
 		}

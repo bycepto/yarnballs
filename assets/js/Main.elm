@@ -147,7 +147,14 @@ update msg model =
                 ( env, envCmd ) =
                     Env.update envMsg model.env
             in
-            ( { model | env = env }, envCmd )
+            case model.page of
+                Game page ->
+                    ( { model | env = env }
+                    , Cmd.batch
+                        [ envCmd
+                        , Yarnballs.syncViewport env page.ws
+                        ]
+                    )
 
         GotPageYarnballsMsg subMsg ->
             case model.page of

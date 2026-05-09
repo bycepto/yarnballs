@@ -13,8 +13,10 @@ import (
 )
 
 const (
-	worldWidth  = 640.0
-	worldHeight = 480.0
+	defaultWorldWidth  = 640.0
+	defaultWorldHeight = 480.0
+	minWorldWidth      = 480.0
+	minWorldHeight     = 320.0
 
 	tickDuration = 16 * time.Millisecond
 
@@ -44,6 +46,8 @@ type Game struct {
 }
 
 type State struct {
+	Width           float64    `json:"width"`
+	Height          float64    `json:"height"`
 	Missiles        MissileSet `json:"missiles"`
 	Enemies         EnemySet   `json:"enemies"`
 	Ships           ShipSet    `json:"ships"`
@@ -249,7 +253,7 @@ func (g *Game) Step() {
 	now := g.now()
 
 	for id, ship := range g.state.Ships.Entities {
-		ship.update(now, dt)
+		ship.update(now, dt, g.state.Width, g.state.Height)
 		g.state.Ships.Entities[id] = ship
 	}
 
@@ -264,7 +268,7 @@ func (g *Game) Step() {
 		g.state.Enemies.Entities[i].update(dt)
 	}
 	g.state.Enemies.Entities = slices.DeleteFunc(g.state.Enemies.Entities, func(e Enemy) bool {
-		return e.outOfBounds()
+		return e.outOfBounds(g.state.Width, g.state.Height)
 	})
 
 	for i := range g.state.Enemies.Explosions.Entities {
@@ -285,6 +289,14 @@ func (g *Game) Snapshot() State {
 	defer g.mu.Unlock()
 
 	return copyState(g.state)
+}
+
+func (g *Game) SetWorldSize(width float64, height float64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.state.Width = math.Max(minWorldWidth, width)
+	g.state.Height = math.Max(minWorldHeight, height)
 }
 
 func (g *Game) applyMissileEnemyCollisionsLocked() {
@@ -485,18 +497,18 @@ func (g *Game) totalScoreLocked() int {
 func (g *Game) spawnEdgePosition() (float64, float64) {
 	const padding = 50.0
 	if g.rng.IntN(2) == 0 {
-		x := []float64{-padding, worldWidth + padding}[g.rng.IntN(2)]
-		y := []float64{0, worldHeight}[g.rng.IntN(2)]
+		x := []float64{-padding, g.state.Width + padding}[g.rng.IntN(2)]
+		y := []float64{0, g.state.Height}[g.rng.IntN(2)]
 		return x, y
 	}
-	x := []float64{0, worldWidth}[g.rng.IntN(2)]
-	y := []float64{-padding, worldHeight + padding}[g.rng.IntN(2)]
+	x := []float64{0, g.state.Width}[g.rng.IntN(2)]
+	y := []float64{-padding, g.state.Height + padding}[g.rng.IntN(2)]
 	return x, y
 }
 
 func (g *Game) spawnAngleToCenter(x float64, y float64) float64 {
-	centerX := worldWidth / 2
-	centerY := worldHeight / 2
+	centerX := g.state.Width / 2
+	centerY := g.state.Height / 2
 	arc := g.rngRange(-50, 50) * math.Pi / 180
 	return math.Atan2(centerY-y, centerX-x) + arc
 }
@@ -514,6 +526,8 @@ func (g *Game) newID() string {
 
 func initialState() State {
 	return State{
+		Width:    defaultWorldWidth,
+		Height:   defaultWorldHeight,
 		Missiles: MissileSet{Entities: []Missile{}},
 		Enemies: EnemySet{
 			Entities:   []Enemy{},
@@ -523,7 +537,7 @@ func initialState() State {
 	}
 }
 
-func (s *Ship) update(now time.Time, dt float64) {
+func (s *Ship) update(now time.Time, dt float64, worldWidth float64, worldHeight float64) {
 	s.X = wrapDim(s.X+s.VelX*dt, worldWidth, shipRadius)
 	s.Y = wrapDim(s.Y+s.VelY*dt, worldHeight, shipRadius)
 	s.Angle += (s.VelAngle * math.Pi / 180) * dt
@@ -563,7 +577,7 @@ func (e Enemy) center() [2]float64 {
 	return [2]float64{e.X + e.Radius, e.Y + e.Radius}
 }
 
-func (e Enemy) outOfBounds() bool {
+func (e Enemy) outOfBounds(worldWidth float64, worldHeight float64) bool {
 	const padding = 100.0
 	return e.X < -padding || e.Y < -padding || e.X > worldWidth+padding || e.Y > worldHeight+padding
 }
@@ -595,6 +609,8 @@ func copyState(src State) State {
 	}
 
 	return State{
+		Width:           src.Width,
+		Height:          src.Height,
 		Missiles:        MissileSet{Entities: missiles},
 		Enemies:         EnemySet{Entities: enemies, Explosions: ExplosionSet{Entities: explosions}, SpawnedCount: src.Enemies.SpawnedCount, DestroyedCount: src.Enemies.DestroyedCount, LastSpawnedAt: src.Enemies.LastSpawnedAt},
 		Ships:           ShipSet{Entities: ships},

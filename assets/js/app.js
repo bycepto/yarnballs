@@ -8,6 +8,7 @@ const DISPLAY_NAME_KEY = "user_display_name";
 const ACCESS_TOKEN_KEY = "yb_access_token";
 
 const DEV_MODE = process.env.APP_MODE == "development";
+const SCROLL_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "]);
 
 // log messages in dev mode
 const log = (msg) => {
@@ -23,6 +24,26 @@ const accessToken = () => localStorage.getItem(ACCESS_TOKEN_KEY);
 const setAccessToken = (token) => {
   localStorage.setItem(ACCESS_TOKEN_KEY, token);
 };
+
+const shouldIgnoreKeyScrollPrevention = (target) => {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  const tagName = target.tagName;
+  return (
+    target.isContentEditable ||
+    tagName === "INPUT" ||
+    tagName === "TEXTAREA" ||
+    tagName === "SELECT"
+  );
+};
+
+window.addEventListener("keydown", (event) => {
+  if (SCROLL_KEYS.has(event.key) && !shouldIgnoreKeyScrollPrevention(event.target)) {
+    event.preventDefault();
+  }
+});
 
 // Setup app
 

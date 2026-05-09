@@ -3,6 +3,7 @@ module Yarnballs exposing
     , Yarnballs
     , init
     , load
+    , syncViewport
     , subscriptions
     , unload
     , update
@@ -115,7 +116,10 @@ update toMsg msg env yb =
                         ( ws, cmd ) =
                             WebSocket.update subMsg user.accessToken yb.ws
                     in
-                    ( { yb | ws = ws }, cmd, env )
+                    ( { yb | ws = ws }
+                    , Cmd.batch [ cmd, syncViewport env ws ]
+                    , env
+                    )
 
         GotWebSocketEventMsg serialized ->
             case Env.Auth.toUser env.auth of
@@ -200,6 +204,38 @@ webSocketSubscriptions toMsg ws =
         [ WebSocket.subscriptions (toMsg << GotWebSocketSetupMsg) topic ws
         , WebSocket.messageReceiver (toMsg << GotWebSocketEventMsg)
         ]
+
+
+syncViewport : Env -> WebSocket -> Cmd msg
+syncViewport env ws =
+    let
+        viewport =
+            gameViewport env
+    in
+    if joined ws && viewport.width > 0 && viewport.height > 0 then
+        WebSocket.send
+            sentEventToString
+            topic
+            ResizedWorld
+        <|
+            E.object
+                [ ( "width", E.int (round viewport.width) )
+                , ( "height", E.int (round viewport.height) )
+                ]
+
+    else
+        Cmd.none
+
+
+type SentEvent
+    = ResizedWorld
+
+
+sentEventToString : SentEvent -> String
+sentEventToString event =
+    case event of
+        ResizedWorld ->
+            "resized_world"
 
 
 
@@ -315,43 +351,38 @@ styleShake =
 viewGameScaled : Env -> ToMsg msg -> Yarnballs -> H.Html msg
 viewGameScaled env toMsg yb =
     H.div
-        [ At.css <|
-            if Env.isMobile env then
-                [ C.transform (C.scale 0.8)
-                ]
-
-            else
-                []
-        , At.css
+        [ At.css
             [ -- flex
               C.displayFlex
             , C.justifyContent C.center
             , C.alignItems C.center
-            , C.property "column-gap" "1em"
+            , C.width (C.pct 100)
+            , C.height (C.pct 100)
             ]
         ]
-        [ viewGame env toMsg yb
-        , if Env.isMobile env then
-            H.text ""
-
-          else
-            viewInfo
-        ]
+        [ viewGame env toMsg yb ]
 
 
 viewGame : Env -> ToMsg msg -> Yarnballs -> H.Html msg
 viewGame env toMsg yb =
+    let
+        viewport =
+            gameViewport env
+    in
     H.div
         [ At.css
             [ C.border3 (C.px 2) C.solid (Utils.fromColor Color.grey)
-            , C.width (C.px Yarnballs.Game.width)
-            , C.height (C.px Yarnballs.Game.height)
+            , C.width (C.px viewport.width)
+            , C.height (C.px viewport.height)
             , C.backgroundImage <|
                 if Nothing == yb.error then
                     C.url "/assets/nebula_blue.s2014.png"
 
                 else
                     C.url ""
+            , C.property "background-size" "auto 100%"
+            , C.property "background-repeat" "repeat-x"
+            , C.property "background-position" "top left"
             ]
         ]
         [ case Env.Auth.getStatus env.auth of
@@ -364,6 +395,9 @@ viewGame env toMsg yb =
 
             SignedIn _ ->
                 if not (joined yb.ws) then
+                    viewLoading
+
+                else if not (worldMatchesViewport env yb.game) then
                     viewLoading
 
                 else
@@ -445,3 +479,20 @@ viewCredits =
             ]
         , H.div [] [ H.text "Kim Lathrop - everything else" ]
         ]
+
+
+gameViewport : Env -> { width : Float, height : Float }
+gameViewport env =
+    { width = max 0 (env.width - 4)
+    , height = max 0 (env.height - 4)
+    }
+
+
+worldMatchesViewport : Env -> Game -> Bool
+worldMatchesViewport env game =
+    let
+        viewport =
+            gameViewport env
+    in
+    abs (Yarnballs.Game.width game - viewport.width) < 1
+        && abs (Yarnballs.Game.height game - viewport.height) < 1

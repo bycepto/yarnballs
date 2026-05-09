@@ -22,6 +22,7 @@ import Canvas.Texture as VT
 import Color
 import Env.User exposing (UserId)
 import Html.Styled as H
+import Html.Attributes as HA
 import Json.Decode as D
 import Json.Decode.Pipeline as DP
 import Keyboard as K
@@ -40,6 +41,8 @@ type alias Game =
     { -- state
       tick : Float
     , pressedKeys : List K.Key
+    , width : Float
+    , height : Float
 
     -- entities
     , ships : Ships
@@ -107,6 +110,8 @@ init : Game
 init =
     { tick = 0
     , pressedKeys = []
+    , width = defaultWidth
+    , height = defaultHeight
     , ships = Yarnballs.Ship.init
     , enemies = Yarnballs.Enemy.init
     , missiles = Yarnballs.Missile.init
@@ -224,7 +229,9 @@ decode userId game =
 handleDecoded : Game -> State -> Game
 handleDecoded game state =
     { game
-        | enemies = state.enemies
+        | width = state.width
+        , height = state.height
+        , enemies = state.enemies
         , missiles = state.missiles
         , booms = state.booms
         , ships = state.ships
@@ -251,7 +258,9 @@ handleDecoded game state =
 
 type alias State =
     -- TODO: is this struct superfluous?
-    { enemies : Enemies
+    { width : Float
+    , height : Float
+    , enemies : Enemies
     , missiles : Missiles
     , ships : Ships
     , booms : Booms
@@ -265,6 +274,8 @@ type alias State =
 decodeState : UserId -> Game -> D.Decoder State
 decodeState userId game =
     D.succeed State
+        |> DP.requiredAt [ "state", "width" ] D.float
+        |> DP.requiredAt [ "state", "height" ] D.float
         |> DP.requiredAt [ "state", "enemies" ] (Yarnballs.Enemy.decode game.enemies)
         |> DP.requiredAt [ "state", "missiles", "entities" ] (Yarnballs.Missile.decode game.missiles)
         |> DP.requiredAt [ "state", "ships", "entities" ] (Yarnballs.Ship.decode game.tick userId game.ships)
@@ -324,11 +335,14 @@ view : ToMsg msg -> Game -> H.Html msg
 view toMsg game =
     H.fromUnstyled <|
         V.toHtmlWith
-            { width = width
-            , height = height
+            { width = round game.width
+            , height = round game.height
             , textures = loadTextures toMsg
             }
-            []
+            [ HA.style "display" "block"
+            , HA.style "width" "100%"
+            , HA.style "height" "100%"
+            ]
         <|
             render game
 
@@ -347,14 +361,14 @@ loadTextures toMsg =
 render : Game -> List V.Renderable
 render game =
     List.concat
-        [ [ V.clear ( 0, 0 ) width height ]
+        [ [ V.clear ( 0, 0 ) game.width game.height ]
         , renderBackground game.bgTexture
         , Yarnballs.Enemy.render game.tick game.enemies
         , Yarnballs.Missile.render game.missiles
         , Yarnballs.Ship.render game.tick (game.shakeFor > 0) game.ships
         , Yarnballs.Boom.render game.tick game.booms
-        , renderDebris game.tick game.debrisTexture
-        , renderLevel game.tick game.level
+        , renderDebris game.tick game.width game.debrisTexture
+        , renderLevel game.tick game.width game.height game.level
         , renderStats game
         , renderProgressBar game
         ]
@@ -374,8 +388,8 @@ renderBackground bgTexture =
             ]
 
 
-renderDebris : Float -> Maybe VT.Texture -> List V.Renderable
-renderDebris tick debrisTexture =
+renderDebris : Float -> Float -> Maybe VT.Texture -> List V.Renderable
+renderDebris tick worldWidth debrisTexture =
     case debrisTexture of
         Nothing ->
             []
@@ -383,7 +397,7 @@ renderDebris tick debrisTexture =
         Just debris ->
             let
                 x =
-                    toFloat <| modBy width (round tick)
+                    toFloat <| modBy (round worldWidth) (round tick)
             in
             [ V.texture
                 []
@@ -391,7 +405,7 @@ renderDebris tick debrisTexture =
                 debris
             , V.texture
                 []
-                ( x - width, 0 )
+                ( x - worldWidth, 0 )
                 debris
             ]
 
@@ -413,13 +427,13 @@ renderStats game =
         , VA.alpha 0.85
         , VW.font { size = 16, family = "san-serif" }
         ]
-        ( width - 8, height - 8 )
+        ( game.width - 8, game.height - 8 )
         "press ? for help/credits"
     ]
 
 
-renderLevel : Float -> Level -> List V.Renderable
-renderLevel tick level =
+renderLevel : Float -> Float -> Float -> Level -> List V.Renderable
+renderLevel tick worldWidth worldHeight level =
     let
         alpha =
             max 0 (100 - (tick - levelTick level)) / 100
@@ -433,14 +447,14 @@ renderLevel tick level =
                     Color.red
     in
     if alpha > 0 then
-        [ V.text
-            [ VW.align VW.Center
-            , VW.baseLine VW.Middle
-            , VS.fill color
-            , VW.font { size = 144, family = "san-serif" }
-            , VA.alpha alpha
-            ]
-            ( width / 2, height / 2 )
+            [ V.text
+                [ VW.align VW.Center
+                , VW.baseLine VW.Middle
+                , VS.fill color
+                , VW.font { size = 144, family = "san-serif" }
+                , VA.alpha alpha
+                ]
+            ( worldWidth / 2, worldHeight / 2 )
             ("Level " ++ String.fromInt (levelNumber level))
         ]
 
@@ -469,7 +483,7 @@ renderProgressBar game =
                 [ VS.fill Color.lightGray
                 ]
                 [ V.rect
-                    ( width - progressBarWidth - 5, 5 )
+                    ( game.width - progressBarWidth - 5, 5 )
                     progressBarWidth
                     progressBarHeight
                 ]
@@ -477,7 +491,7 @@ renderProgressBar game =
                 [ VS.fill Color.darkGray
                 ]
                 [ V.rect
-                    ( width - progressBarWidth - 5, 5 )
+                    ( game.width - progressBarWidth - 5, 5 )
                     (progressBarWidth * pct)
                     progressBarHeight
                 ]
@@ -486,7 +500,7 @@ renderProgressBar game =
                 , VW.font { size = 18, family = "san-serif" }
                 , VW.align VW.Center
                 ]
-                ( width - (progressBarWidth / 2) - 5, 20 )
+                ( game.width - (progressBarWidth / 2) - 5, 20 )
                 ("Level " ++ String.fromInt (levelNumber game.level))
             ]
 
@@ -501,11 +515,21 @@ progressBarHeight =
     20
 
 
-width : number
-width =
+defaultWidth : Float
+defaultWidth =
     640
 
 
-height : number
-height =
+defaultHeight : Float
+defaultHeight =
     480
+
+
+width : Game -> Float
+width game =
+    game.width
+
+
+height : Game -> Float
+height game =
+    game.height

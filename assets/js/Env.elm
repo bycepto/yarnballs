@@ -3,7 +3,6 @@ module Env exposing
     , Flags
     , Msg
     , init
-    , isMobile
     , subscriptions
     , update
     )
@@ -30,6 +29,7 @@ type alias Env =
 
     -- Display
     , width : Float
+    , height : Float
     }
 
 
@@ -50,6 +50,7 @@ init toMsg flags =
     ( { auth = auth
       , devMode = flags.devMode
       , width = 0
+      , height = 0
       }
     , Cmd.batch
         [ authCmd
@@ -69,13 +70,13 @@ initAuth toMsg flags =
 initViewport : ToMsg msg -> Cmd msg
 initViewport toMsg =
     Task.perform
-        (\vp -> (toMsg << GotViewportWidth) vp.viewport.width)
+        (\vp ->
+            toMsg <|
+                GotViewport
+                    vp.viewport.width
+                    vp.viewport.height
+        )
         Browser.Dom.getViewport
-
-
-isMobile : Env -> Bool
-isMobile { width } =
-    width <= 900
 
 
 
@@ -87,15 +88,15 @@ type alias ToMsg msg =
 
 
 type Msg
-    = GotViewportWidth Float
+    = GotViewport Float Float
     | GotAuthStatusMsg Env.Auth.Msg
 
 
 update : Msg -> Env -> ( Env, Cmd msg )
 update msg env =
     case msg of
-        GotViewportWidth width ->
-            ( { env | width = width }, Cmd.none )
+        GotViewport width height ->
+            ( { env | width = width, height = height }, Cmd.none )
 
         GotAuthStatusMsg subMsg ->
             let
@@ -112,4 +113,4 @@ update msg env =
 subscriptions : ToMsg msg -> Sub msg
 subscriptions toMsg =
     Browser.Events.onResize
-        (\w _ -> (toMsg << GotViewportWidth) (toFloat w))
+        (\w h -> toMsg <| GotViewport (toFloat w) (toFloat h))
