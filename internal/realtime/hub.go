@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -27,6 +28,7 @@ type Hub struct {
 	mu            sync.Mutex
 	clients       map[*Client]struct{}
 	clientsByUser map[string]*Client
+	snapshotSeq   atomic.Uint64
 }
 
 type Client struct {
@@ -36,10 +38,11 @@ type Client struct {
 }
 
 type inboundMessage struct {
-	Type    string          `json:"type"`
-	Topic   string          `json:"topic,omitempty"`
-	Event   string          `json:"event,omitempty"`
-	Payload json.RawMessage `json:"payload,omitempty"`
+	Type     string          `json:"type"`
+	Topic    string          `json:"topic,omitempty"`
+	Event    string          `json:"event,omitempty"`
+	Payload  json.RawMessage `json:"payload,omitempty"`
+	SentAtMS int64           `json:"sent_at_ms,omitempty"`
 }
 
 type outboundJoinAck struct {
@@ -58,6 +61,26 @@ type outboundEvent struct {
 type outboundError struct {
 	Type  string `json:"type"`
 	Error string `json:"error"`
+}
+
+type outboundPong struct {
+	Type         string `json:"type"`
+	EchoSentAtMS int64  `json:"echo_sent_at_ms,omitempty"`
+	ServerTimeMS int64  `json:"server_time_ms"`
+}
+
+type snapshotPayload struct {
+	State game.State   `json:"state"`
+	Meta  snapshotMeta `json:"meta"`
+}
+
+type snapshotMeta struct {
+	Sequence            uint64 `json:"sequence"`
+	ServerTimeMS        int64  `json:"server_time_ms"`
+	BroadcastIntervalMS int64  `json:"broadcast_interval_ms"`
+	TickIntervalMS      int64  `json:"tick_interval_ms"`
+	ClientCount         int    `json:"client_count"`
+	PlayerCount         int    `json:"player_count"`
 }
 
 func NewHub(authService *auth.Service) *Hub {
@@ -120,6 +143,12 @@ func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 func (h *Hub) processClientMessage(client *Client, msg inboundMessage) ([]interface{}, error) {
 	switch msg.Type {
+	case "ping":
+		return []interface{}{outboundPong{
+			Type:         "pong",
+			EchoSentAtMS: msg.SentAtMS,
+			ServerTimeMS: time.Now().UnixMilli(),
+		}}, nil
 	case "join":
 		if msg.Topic != gameTopic {
 			return []interface{}{outboundError{Type: "error", Error: "unknown topic"}}, nil
@@ -195,18 +224,28 @@ func (h *Hub) loop() {
 }
 
 func (h *Hub) broadcastState() {
-	state := struct {
-		State game.State `json:"state"`
-	}{
-		State: h.game.Snapshot(),
-	}
-
 	h.broadcast(outboundEvent{
 		Type:    "message",
 		Topic:   gameTopic,
 		Event:   "requested_state",
-		Payload: state,
+		Payload: h.newSnapshotPayload(),
 	})
+}
+
+func (h *Hub) newSnapshotPayload() snapshotPayload {
+	state := h.game.Snapshot()
+
+	return snapshotPayload{
+		State: state,
+		Meta: snapshotMeta{
+			Sequence:            h.snapshotSeq.Add(1),
+			ServerTimeMS:        time.Now().UnixMilli(),
+			BroadcastIntervalMS: broadcastInterval.Milliseconds(),
+			TickIntervalMS:      game.TickDuration().Milliseconds(),
+			ClientCount:         h.subscriberCount(gameTopic),
+			PlayerCount:         len(state.Ships.Entities),
+		},
+	}
 }
 
 func (h *Hub) broadcast(msg outboundEvent) {
@@ -239,6 +278,19 @@ func (h *Hub) addClient(client *Client) {
 	if replaced != nil && replaced != client && replaced.conn != nil {
 		_ = replaced.conn.Close(websocket.StatusPolicyViolation, "superseded by newer connection")
 	}
+}
+
+func (h *Hub) subscriberCount(topic string) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	count := 0
+	for client := range h.clients {
+		if _, ok := client.topics[topic]; ok {
+			count++
+		}
+	}
+	return count
 }
 
 func (h *Hub) removeClient(client *Client) {

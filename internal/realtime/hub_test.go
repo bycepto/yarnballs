@@ -116,6 +116,40 @@ func TestProcessClientMessageUnknownTypeReturnsError(t *testing.T) {
 	}
 }
 
+func TestProcessClientMessagePingReturnsPong(t *testing.T) {
+	svc := auth.NewService("test-key")
+	hub := NewHub(svc)
+	client := &Client{
+		user:   auth.User{ID: "u1", Name: "alice"},
+		topics: map[string]struct{}{},
+	}
+
+	responses, err := hub.processClientMessage(client, inboundMessage{
+		Type:     "ping",
+		SentAtMS: 1234,
+	})
+	if err != nil {
+		t.Fatalf("processClientMessage() error = %v", err)
+	}
+	if len(responses) != 1 {
+		t.Fatalf("response count = %d, want 1", len(responses))
+	}
+
+	pong, ok := responses[0].(outboundPong)
+	if !ok {
+		t.Fatalf("response type = %T, want outboundPong", responses[0])
+	}
+	if pong.Type != "pong" {
+		t.Fatalf("pong type = %q, want pong", pong.Type)
+	}
+	if pong.EchoSentAtMS != 1234 {
+		t.Fatalf("echo sent at = %d, want 1234", pong.EchoSentAtMS)
+	}
+	if pong.ServerTimeMS == 0 {
+		t.Fatalf("server time ms = 0, want non-zero")
+	}
+}
+
 func TestProcessClientMessageDuplicateJoinIsIdempotent(t *testing.T) {
 	svc := auth.NewService("test-key")
 	hub := NewHub(svc)
@@ -175,5 +209,43 @@ func TestRemoveOldSupersededClientDoesNotRemovePlayer(t *testing.T) {
 	state = hub.game.Snapshot()
 	if _, ok := state.Ships.Entities["u1"]; ok {
 		t.Fatalf("player should be removed after active client removal")
+	}
+}
+
+func TestNewSnapshotPayloadIncludesMetrics(t *testing.T) {
+	svc := auth.NewService("test-key")
+	hub := NewHub(svc)
+
+	client := &Client{
+		user:   auth.User{ID: "u1", Name: "alice"},
+		topics: map[string]struct{}{gameTopic: {}},
+	}
+
+	hub.addClient(client)
+	hub.game.AddPlayer(client.user)
+
+	first := hub.newSnapshotPayload()
+	second := hub.newSnapshotPayload()
+
+	if first.Meta.Sequence == 0 {
+		t.Fatalf("first sequence = 0, want non-zero")
+	}
+	if second.Meta.Sequence <= first.Meta.Sequence {
+		t.Fatalf("sequence did not increase: first=%d second=%d", first.Meta.Sequence, second.Meta.Sequence)
+	}
+	if first.Meta.BroadcastIntervalMS != broadcastInterval.Milliseconds() {
+		t.Fatalf("broadcast interval ms = %d, want %d", first.Meta.BroadcastIntervalMS, broadcastInterval.Milliseconds())
+	}
+	if first.Meta.TickIntervalMS == 0 {
+		t.Fatalf("tick interval ms = 0, want non-zero")
+	}
+	if first.Meta.ClientCount != 1 {
+		t.Fatalf("client count = %d, want 1", first.Meta.ClientCount)
+	}
+	if first.Meta.PlayerCount != 1 {
+		t.Fatalf("player count = %d, want 1", first.Meta.PlayerCount)
+	}
+	if first.Meta.ServerTimeMS == 0 {
+		t.Fatalf("server time ms = 0, want non-zero")
 	}
 }
