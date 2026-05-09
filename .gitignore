@@ -55,3 +55,6 @@ shmup.tar.gz
 
 # native build artifacts
 /priv/native
+
+# codex
+.codex

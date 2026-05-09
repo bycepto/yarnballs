@@ -34,15 +34,24 @@
 # Mix artifacts
 /_build/
 /deps/
+/.fetch
 *.ez
+shmup-*.tar
+shmup.tar.gz
 
 # Generated on crash by the VM
 erl_crash.dump
 
 # Static artifacts - These should be fetched and built inside the Docker image
 /assets/node_modules/
+/assets/elm-stuff
 /priv/static/assets/
 /priv/static/cache_manifest.json
+/priv/native
+
+# Editor / local logs
+npm-debug.log
+*.kate-swp
 
 # tools
 .ignore
@@ -51,3 +60,6 @@ erl_crash.dump
 
 # secrets
 /.secrets/
+
+# codex
+.codex
