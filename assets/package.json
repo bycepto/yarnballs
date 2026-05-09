@@ -1,4 +1,5 @@
 {
+  "packageManager": "pnpm@9.15.9",
   "devDependencies": {
     "@types/phoenix": "^1.6.6",
     "esbuild": "^0.24.0",

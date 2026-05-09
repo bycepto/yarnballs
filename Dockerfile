@@ -24,9 +24,12 @@ RUN apt-get update -y && apt-get install -y build-essential git nodejs npm curl 
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 # install frontend dependencies
-RUN npm install -g pnpm elm
 ENV PNPM_HOME="/pnpm"
+ENV PNPM_STORE_DIR="/pnpm/store"
+ENV XDG_DATA_HOME="/pnpm/data"
 ENV PATH="$PNPM_HOME:$PATH"
+RUN mkdir -p "$PNPM_HOME" "$PNPM_STORE_DIR" "$XDG_DATA_HOME" && \
+    npm install -g pnpm@9.15.9 elm
 
 # install rust
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
@@ -62,7 +65,7 @@ COPY native native
 COPY assets assets
 
 # compile assets
-RUN pnpm -C assets install
+RUN pnpm -C assets install --frozen-lockfile --store-dir="$PNPM_STORE_DIR"
 ARG PHX_HOST
 ENV PHX_HOST $PHX_HOST
 RUN mix assets.deploy
