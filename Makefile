@@ -29,3 +29,11 @@ update-production-env:
 .PHONY: deploy
 deploy:
 	fly deploy -c fly.toml
+
+.PHONY: deploy-from-local
+deploy-from-local:
+	fly deploy -c fly.toml --local-only
+
+.PHONY: build-from_local
+build-from-local:
+	fly deploy -c fly.toml --local-only --build-only
