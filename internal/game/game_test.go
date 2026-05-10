@@ -40,7 +40,7 @@ func TestMissileEnemyCollisionAddsScoreAndExplosion(t *testing.T) {
 
 	g.mu.Lock()
 	g.state.Ships.Entities["u1"] = Ship{ID: "u1", Health: maxHealth}
-	g.state.Missiles.Entities = []Missile{{ID: "m1", ShooterID: "u1", X: 43.4, Y: 43.4, Lifespan: time.Second}}
+	g.state.Missiles.Entities = []Missile{{ID: "m1", ShooterID: "u1", X: 43.4, Y: 43.4}}
 	g.state.Enemies.Entities = []Enemy{{ID: "e1", Kind: "bouncer", X: 10, Y: 10, Radius: bouncerRadius, RepelVel: 1000}}
 	g.mu.Unlock()
 
@@ -90,6 +90,34 @@ func TestFireMissileRespawnsDestroyedShip(t *testing.T) {
 	}
 	if ship.DestroyedAt != nil {
 		t.Fatalf("ship was not respawned")
+	}
+}
+
+func TestMissilePersistsUntilOutOfBounds(t *testing.T) {
+	g := newTestGame()
+
+	g.mu.Lock()
+	g.state.Width = 1000
+	g.state.Height = 1000
+	g.state.Missiles.Entities = []Missile{{ID: "m1", X: 100, Y: 100, VelX: missileVelocity, VelY: 0}}
+	g.mu.Unlock()
+
+	for range 100 {
+		g.Step()
+	}
+
+	state := g.Snapshot()
+	if len(state.Missiles.Entities) != 1 {
+		t.Fatalf("missile count = %d, want 1", len(state.Missiles.Entities))
+	}
+
+	for range 100 {
+		g.Step()
+	}
+
+	state = g.Snapshot()
+	if len(state.Missiles.Entities) != 0 {
+		t.Fatalf("missile count = %d, want 0", len(state.Missiles.Entities))
 	}
 }
 

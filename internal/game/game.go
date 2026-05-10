@@ -33,7 +33,6 @@ const (
 	rockBaseRadius    = 45.0
 	missileRadius     = 5.0
 	missileVelocity   = 500.0
-	missileLifespan   = 1000 * time.Millisecond
 	explosionLifespan = 1000 * time.Millisecond
 )
 
@@ -89,7 +88,6 @@ type Missile struct {
 	Y         float64       `json:"y"`
 	VelX      float64       `json:"vel_x"`
 	VelY      float64       `json:"vel_y"`
-	Lifespan  time.Duration `json:"-"`
 }
 
 type EnemySet struct {
@@ -241,7 +239,6 @@ func (g *Game) FireMissile(userID string) {
 		Y:         y,
 		VelX:      missileVelocity * math.Cos(ship.Angle),
 		VelY:      missileVelocity * math.Sin(ship.Angle),
-		Lifespan:  missileLifespan,
 	})
 }
 
@@ -261,7 +258,7 @@ func (g *Game) Step() {
 		g.state.Missiles.Entities[i].update(dt)
 	}
 	g.state.Missiles.Entities = slices.DeleteFunc(g.state.Missiles.Entities, func(m Missile) bool {
-		return m.Lifespan <= 0
+		return m.outOfBounds(g.state.Width, g.state.Height)
 	})
 
 	for i := range g.state.Enemies.Entities {
@@ -566,11 +563,15 @@ func (s Ship) center() [2]float64 {
 func (m *Missile) update(dt float64) {
 	m.X += m.VelX * dt
 	m.Y += m.VelY * dt
-	m.Lifespan -= tickDuration
 }
 
 func (m Missile) center() [2]float64 {
 	return [2]float64{m.X + missileRadius, m.Y + missileRadius}
+}
+
+func (m Missile) outOfBounds(worldWidth float64, worldHeight float64) bool {
+	const padding = missileRadius
+	return m.X < -padding || m.Y < -padding || m.X > worldWidth+padding || m.Y > worldHeight+padding
 }
 
 func (e Enemy) center() [2]float64 {
