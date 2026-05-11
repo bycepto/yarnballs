@@ -21,11 +21,12 @@ import Canvas.Settings.Text as VW
 import Canvas.Texture as VT
 import Color
 import Env.User exposing (UserId)
-import Html.Styled as H
 import Html.Attributes as HA
+import Html.Styled as H
 import Json.Decode as D
 import Json.Decode.Pipeline as DP
 import Keyboard as K
+import Random
 import WebSocket
 import Yarnballs.Boom exposing (Booms)
 import Yarnballs.Enemy exposing (Enemies)
@@ -53,6 +54,7 @@ type alias Game =
     -- assets
     , bgTexture : Maybe VT.Texture
     , debrisTexture : Maybe VT.Texture
+    , debrisLanes : List ( Float, Float )
 
     -- stats
     , score : Int
@@ -118,6 +120,7 @@ init =
     , booms = Yarnballs.Boom.init
     , bgTexture = Nothing
     , debrisTexture = Nothing
+    , debrisLanes = []
     , score = 0
     , level = LevelUp 0 0
     , startLevelScore = 0
@@ -129,6 +132,16 @@ init =
 shakeTicks : Int
 shakeTicks =
     30
+
+
+debrisTextureWidth : Float
+debrisTextureWidth =
+    640
+
+
+debrisTextureHeight : Float
+debrisTextureHeight =
+    480
 
 
 
@@ -148,11 +161,12 @@ type Msg
     | GotBoom (Maybe VT.Texture)
     | GotBackground (Maybe VT.Texture)
     | GotDebris (Maybe VT.Texture)
+    | GotSpawnedDebris (Maybe ( Float, Float ))
     | Frame Float
 
 
-update : Msg -> WebSocket.Topic -> Game -> ( Game, Cmd msg )
-update msg topic game =
+update : (Msg -> msg) -> Msg -> WebSocket.Topic -> Game -> ( Game, Cmd msg )
+update toMsg msg topic game =
     case msg of
         GotKeyPress keyMsg ->
             ( { game | pressedKeys = K.update keyMsg game.pressedKeys }, Cmd.none )
@@ -206,17 +220,75 @@ update msg topic game =
             , Cmd.none
             )
 
-        Frame _ ->
+        GotSpawnedDebris maybeSpawned ->
+            case maybeSpawned of
+                Nothing ->
+                    ( game, Cmd.none )
+
+                Just lane ->
+                    ( { game | debrisLanes = lane :: game.debrisLanes }, Cmd.none )
+
+        Frame dt ->
             let
                 newGame =
-                    handleFrameUpdate game
+                    handleFrameUpdate dt game
+
+                cmdDebris =
+                    Random.generate (toMsg << GotSpawnedDebris) (spawnDebris newGame)
 
                 ( newShips, cmdShips ) =
                     Yarnballs.Ship.update newGame topic newGame.ships
             in
             ( { newGame | ships = newShips }
-            , cmdShips
+            , Cmd.batch [ cmdShips, cmdDebris ]
             )
+
+
+{-| Spawn new debris lane if there are less than 4
+-}
+spawnDebris : Game -> Random.Generator (Maybe ( Float, Float ))
+spawnDebris game =
+    let
+        laneCount =
+            List.length game.debrisLanes
+    in
+    if laneCount >= maxLanes then
+        Random.constant Nothing
+
+    else if laneCount > 0 && laneCount < maxLanes then
+        Random.weighted ( noSpawnWeight, False ) [ ( 1, True ) ]
+            |> Random.andThen
+                (\yes ->
+                    if yes then
+                        Random.map Just (spawnDebrisLane game.height)
+
+                    else
+                        Random.constant Nothing
+                )
+
+    else
+        Random.map Just (spawnDebrisLane game.height)
+
+
+maxLanes : Int
+maxLanes =
+    4
+
+
+noSpawnWeight : Float
+noSpawnWeight =
+    1000
+
+
+spawnDebrisLane : Float -> Random.Generator ( Float, Float )
+spawnDebrisLane worldHeight =
+    let
+        maxLaneY =
+            max 0 (worldHeight - debrisTextureHeight)
+    in
+    Random.map
+        (Tuple.pair -debrisTextureWidth)
+        (Random.float 0 maxLaneY)
 
 
 decode : UserId -> Game -> D.Decoder Game
@@ -286,19 +358,44 @@ decodeState userId game =
         |> DP.requiredAt [ "state", "next_level_score" ] (D.nullable D.int)
 
 
-handleFrameUpdate : Game -> Game
-handleFrameUpdate game =
+handleFrameUpdate : Float -> Game -> Game
+handleFrameUpdate dt game =
     game
         |> handleKeyPresses
-        |> updateTick
+        |> updateTick dt
 
 
-updateTick : Game -> Game
-updateTick game =
+updateTick : Float -> Game -> Game
+updateTick dt game =
     { game
         | tick = game.tick + 1
         , shakeFor = max 0 (game.shakeFor - 1)
+        , debrisLanes = updateDebrisLanes dt game.width game.debrisLanes
     }
+
+
+updateDebrisLanes : Float -> Float -> List ( Float, Float ) -> List ( Float, Float )
+updateDebrisLanes dt worldWidth =
+    List.filterMap (updateDebrisLane dt worldWidth)
+
+
+updateDebrisLane : Float -> Float -> ( Float, Float ) -> Maybe ( Float, Float )
+updateDebrisLane dt worldWidth ( x, y ) =
+    let
+        nextX =
+            x + debrisVelocity * (dt / 1000)
+    in
+    -- Is debris offscreen moving to the right?
+    if nextX >= worldWidth then
+        Nothing
+
+    else
+        Just ( nextX, y )
+
+
+debrisVelocity : Float
+debrisVelocity =
+    60
 
 
 handleKeyPresses : Game -> Game
@@ -367,7 +464,7 @@ render game =
         , Yarnballs.Missile.render game.missiles
         , Yarnballs.Ship.render game.tick (game.shakeFor > 0) game.ships
         , Yarnballs.Boom.render game.tick game.booms
-        , renderDebris game.tick game.width game.debrisTexture
+        , renderDebris game.debrisTexture game.debrisLanes
         , renderLevel game.tick game.width game.height game.level
         , renderStats game
         , renderProgressBar game
@@ -388,26 +485,14 @@ renderBackground bgTexture =
             ]
 
 
-renderDebris : Float -> Float -> Maybe VT.Texture -> List V.Renderable
-renderDebris tick worldWidth debrisTexture =
+renderDebris : Maybe VT.Texture -> List ( Float, Float ) -> List V.Renderable
+renderDebris debrisTexture lanes =
     case debrisTexture of
         Nothing ->
             []
 
         Just debris ->
-            let
-                x =
-                    toFloat <| modBy (round worldWidth) (round tick)
-            in
-            [ V.texture
-                []
-                ( x, 0 )
-                debris
-            , V.texture
-                []
-                ( x - worldWidth, 0 )
-                debris
-            ]
+            List.map (\lane -> V.texture [] lane debris) lanes
 
 
 renderStats : Game -> List V.Renderable
@@ -447,13 +532,13 @@ renderLevel tick worldWidth worldHeight level =
                     Color.red
     in
     if alpha > 0 then
-            [ V.text
-                [ VW.align VW.Center
-                , VW.baseLine VW.Middle
-                , VS.fill color
-                , VW.font { size = 144, family = "san-serif" }
-                , VA.alpha alpha
-                ]
+        [ V.text
+            [ VW.align VW.Center
+            , VW.baseLine VW.Middle
+            , VS.fill color
+            , VW.font { size = 144, family = "san-serif" }
+            , VA.alpha alpha
+            ]
             ( worldWidth / 2, worldHeight / 2 )
             ("Level " ++ String.fromInt (levelNumber level))
         ]

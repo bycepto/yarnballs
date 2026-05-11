@@ -3,8 +3,8 @@ module Yarnballs exposing
     , Yarnballs
     , init
     , load
-    , syncViewport
     , subscriptions
+    , syncViewport
     , unload
     , update
     , viewHelp
@@ -142,7 +142,7 @@ update toMsg msg env yb =
         GotYarnballsMsg subMsg ->
             let
                 ( game, cmd ) =
-                    Yarnballs.Game.update subMsg topic yb.game
+                    Yarnballs.Game.update (toMsg << GotYarnballsMsg) subMsg topic yb.game
             in
             ( { yb | game = game }, cmd, env )
 
@@ -494,5 +494,7 @@ worldMatchesViewport env game =
         viewport =
             gameViewport env
     in
-    abs (Yarnballs.Game.width game - viewport.width) < 1
-        && abs (Yarnballs.Game.height game - viewport.height) < 1
+    abs (Yarnballs.Game.width game - viewport.width)
+        < 1
+        && abs (Yarnballs.Game.height game - viewport.height)
+        < 1
