@@ -5,6 +5,7 @@ const GOOD_COLOR = "#7ee081";
 const WARN_COLOR = "#f2d56b";
 const BAD_COLOR = "#ff7b72";
 const NEUTRAL_COLOR = "#d7e3f0";
+const COALESCE_WINDOW_MS = 5000;
 
 const colorByThresholds = (value, goodMax, warnMax) => {
   if (value == null) {
@@ -116,8 +117,10 @@ const createMetrics = (enabled) => {
     ["recv->flush", "receiveToFlush"],
     // time from snapshot receipt to the next paint opportunity after that flush
     ["recv->paint", "receiveToPaint"],
-    // count of older pending snapshots replaced by newer ones
-    ["coalesced", "coalescedSnapshots"],
+    // count of older pending snapshots replaced by newer ones over the recent window
+    ["coalesced 5s", "coalescedRecent"],
+    // percentage of recent snapshots that replaced an older pending snapshot
+    ["coalesced %", "coalescedRatio"],
     // number of snapshots waiting to be flushed into Elm
     ["pending", "pendingSnapshots"],
     // number of subscribed websocket clients reported by the server
@@ -162,7 +165,7 @@ const createMetrics = (enabled) => {
     inputToFlushMs: null,
     receiveToFlushMs: null,
     receiveToPaintMs: null,
-    coalescedSnapshots: 0,
+    coalescedSnapshotTimes: [],
     pendingSnapshots: 0,
     serverClientCount: 0,
     serverPlayerCount: 0,
@@ -180,7 +183,22 @@ const createMetrics = (enabled) => {
     rowElements[key].style.color = color;
   };
 
+  const trimRecentTimes = (times, now, windowMs) => {
+    while (times.length > 0 && now - times[0] > windowMs) {
+      times.shift();
+    }
+  };
+
   const render = () => {
+    const now = performance.now();
+    trimRecentTimes(state.snapshotTimes, now, COALESCE_WINDOW_MS);
+    trimRecentTimes(state.coalescedSnapshotTimes, now, COALESCE_WINDOW_MS);
+
+    const recentSnapshotCount = state.snapshotTimes.length;
+    const recentCoalescedCount = state.coalescedSnapshotTimes.length;
+    const recentCoalescedRatio =
+      recentSnapshotCount > 0 ? (recentCoalescedCount / recentSnapshotCount) * 100 : null;
+
     setValue("socketStatus", state.connected ? "open" : "closed", state.connected ? GOOD_COLOR : BAD_COLOR);
     setValue("topics", String(state.joinedTopics), state.joinedTopics > 0 ? GOOD_COLOR : WARN_COLOR);
     setValue("fps", state.fps.toFixed(0), colorByMinimums(state.fps, 55, 45));
@@ -192,7 +210,8 @@ const createMetrics = (enabled) => {
     setValue("inputToFlush", formatMs(state.inputToFlushMs), colorByThresholds(state.inputToFlushMs, 50, 110));
     setValue("receiveToFlush", formatMs(state.receiveToFlushMs), colorByFrameBudget(state.receiveToFlushMs, state.frameMs, 0.75, 1.25));
     setValue("receiveToPaint", formatMs(state.receiveToPaintMs), colorByFrameBudget(state.receiveToPaintMs, state.frameMs, 1.5, 2.25));
-    setValue("coalescedSnapshots", String(state.coalescedSnapshots), colorByThresholds(state.coalescedSnapshots, 3, 15));
+    setValue("coalescedRecent", String(recentCoalescedCount), colorByThresholds(recentCoalescedCount, 3, 15));
+    setValue("coalescedRatio", formatPercent(recentCoalescedRatio), colorByThresholds(recentCoalescedRatio, 5, 20));
     setValue("pendingSnapshots", String(state.pendingSnapshots), colorByThresholds(state.pendingSnapshots, 0, 1));
     setValue("serverClientCount", String(state.serverClientCount));
     setValue("serverPlayerCount", String(state.serverPlayerCount));
@@ -262,7 +281,7 @@ const createMetrics = (enabled) => {
     },
     noteStateQueued(replacedPending) {
       if (replacedPending) {
-        state.coalescedSnapshots += 1;
+        state.coalescedSnapshotTimes.push(performance.now());
         state.pendingSnapshots = 1;
       } else {
         state.pendingSnapshots += 1;
@@ -300,7 +319,7 @@ const createMetrics = (enabled) => {
       state.inputToFlushMs = null;
       state.receiveToFlushMs = null;
       state.receiveToPaintMs = null;
-      state.coalescedSnapshots = 0;
+      state.coalescedSnapshotTimes = [];
       state.pendingSnapshots = 0;
       state.serverClientCount = 0;
       state.serverPlayerCount = 0;
@@ -319,6 +338,7 @@ const createMetrics = (enabled) => {
 
 const formatMs = (value) => (value == null ? "n/a" : `${value.toFixed(1)}ms`);
 const formatBytes = (value) => (value ? `${value}B` : "n/a");
+const formatPercent = (value) => (value == null ? "n/a" : `${value.toFixed(1)}%`);
 
 const setupWebSocket = (app, log = defaultLog) => {
   let socket = null;
