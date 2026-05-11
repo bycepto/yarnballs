@@ -48,11 +48,11 @@ update-production-env:
 	cat .secrets/env.txt | fly secrets import
 
 .PHONY: deploy
-deploy:
+deploy: test
 	fly deploy -c fly.toml
 
 .PHONY: deploy-from-local
-deploy-from-local:
+deploy-from-local: test
 	fly deploy -c fly.toml --local-only
 
 .PHONY: build-from_local
