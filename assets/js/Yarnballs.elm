@@ -6,6 +6,7 @@ module Yarnballs exposing
     , subscriptions
     , unload
     , update
+    , viewHelp
     , view
     )
 
@@ -383,6 +384,11 @@ viewInfo =
         , viewControls
         , viewCredits
         ]
+
+
+viewHelp : H.Html msg
+viewHelp =
+    viewInfo
 
 
 viewInfoHeader : String -> H.Html msg

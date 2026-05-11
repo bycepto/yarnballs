@@ -406,6 +406,15 @@ renderStats game =
         ]
         ( 5, 5 )
         ("score: " ++ String.fromInt game.score)
+    , V.text
+        [ VW.align VW.Right
+        , VW.baseLine VW.Bottom
+        , VS.fill Color.darkGreen
+        , VA.alpha 0.85
+        , VW.font { size = 16, family = "san-serif" }
+        ]
+        ( width - 8, height - 8 )
+        "press ? for help/credits"
     ]
 
 

@@ -41,6 +41,7 @@ type alias Model =
     -- Page
     , page : Page
     , debugMetrics : DebugMetrics
+    , helpVisible : Bool
     }
 
 
@@ -73,6 +74,7 @@ init flags =
     ( { env = env
       , page = Game game
       , debugMetrics = debugMetrics
+      , helpVisible = False
       }
     , Cmd.batch
         [ envCmd
@@ -127,7 +129,14 @@ normalizeQueryString queryString =
 type Msg
     = GotEnvMsg Env.Msg
     | GotPageYarnballsMsg Yarnballs.Msg
-    | GotDebugKey String
+    | GotGlobalKey KeyPress
+
+
+type alias KeyPress =
+    { key : String
+    , targetTagName : String
+    , isContentEditable : Bool
+    }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -154,27 +163,50 @@ update msg model =
                     , cmd
                     )
 
-        GotDebugKey key ->
-            if model.debugMetrics.available && String.toLower key == "x" then
-                let
-                    visible =
-                        not model.debugMetrics.visible
+        GotGlobalKey keyPress ->
+            handleGlobalKey keyPress model
 
-                    newDebugMetrics =
-                        let
-                            debugMetrics =
-                                model.debugMetrics
-                        in
-                        { debugMetrics | visible = visible }
-                in
-                ( { model
-                    | debugMetrics = newDebugMetrics
-                  }
-                , setDebugMetricsVisible visible
-                )
 
-            else
-                ( model, Cmd.none )
+handleGlobalKey : KeyPress -> Model -> ( Model, Cmd Msg )
+handleGlobalKey keyPress model =
+    if shouldIgnoreGlobalKey keyPress then
+        ( model, Cmd.none )
+
+    else
+        case keyPress.key of
+            "?" ->
+                ( { model | helpVisible = not model.helpVisible }, Cmd.none )
+
+            "Escape" ->
+                if model.helpVisible then
+                    ( { model | helpVisible = False }, Cmd.none )
+
+                else
+                    ( model, Cmd.none )
+
+            key ->
+                if model.debugMetrics.available && String.toLower key == "x" then
+                    let
+                        visible =
+                            not model.debugMetrics.visible
+
+                        debugMetrics =
+                            model.debugMetrics
+                    in
+                    ( { model
+                        | debugMetrics = { debugMetrics | visible = visible }
+                      }
+                    , setDebugMetricsVisible visible
+                    )
+
+                else
+                    ( model, Cmd.none )
+
+
+shouldIgnoreGlobalKey : KeyPress -> Bool
+shouldIgnoreGlobalKey { targetTagName, isContentEditable } =
+    isContentEditable
+        || List.member targetTagName [ "INPUT", "TEXTAREA", "SELECT" ]
 
 
 
@@ -188,12 +220,21 @@ subscriptions model =
         , case model.page of
             Game page ->
                 Yarnballs.subscriptions GotPageYarnballsMsg page.ws
-        , if model.debugMetrics.available then
-            Browser.Events.onKeyDown (D.map GotDebugKey (D.field "key" D.string))
-
-          else
-            Sub.none
+        , Browser.Events.onKeyDown decodeKeyPress
         ]
+
+
+decodeKeyPress : D.Decoder Msg
+decodeKeyPress =
+    D.map3 KeyPress
+        (D.field "key" D.string)
+        (D.at [ "target", "tagName" ] D.string)
+        (D.oneOf
+            [ D.at [ "target", "isContentEditable" ] D.bool
+            , D.succeed False
+            ]
+        )
+        |> D.map GotGlobalKey
 
 
 
@@ -210,7 +251,15 @@ view model =
     , body =
         List.map
             H.toUnstyled
-            [ H.div stylePage [ doc.content ] ]
+            [ H.div stylePage <|
+                [ doc.content ]
+                    ++ (if model.helpVisible then
+                            [ viewHelpOverlay ]
+
+                        else
+                            []
+                       )
+            ]
     }
 
 
@@ -234,3 +283,64 @@ viewPage model =
     case model.page of
         Game page ->
             Yarnballs.view model.env GotPageYarnballsMsg page
+
+
+viewHelpOverlay : H.Html Msg
+viewHelpOverlay =
+    H.div
+        [ At.css
+            [ C.position C.fixed
+            , C.top C.zero
+            , C.left C.zero
+            , C.width (C.vw 100)
+            , C.height (C.vh 100)
+            , C.displayFlex
+            , C.justifyContent C.center
+            , C.alignItems C.center
+            , C.padding2 (C.px 24) (C.px 24)
+            , C.backgroundColor (C.rgba 4 8 15 0.82)
+            , C.zIndex (C.int 1000)
+            , C.boxSizing C.borderBox
+            ]
+        ]
+        [ H.div
+            [ At.css
+                [ C.width (C.px 520)
+                , C.maxWidth (C.pct 100)
+                , C.maxHeight (C.pct 100)
+                , C.overflowY C.auto
+                , C.padding4 (C.px 24) (C.px 28) (C.px 24) (C.px 28)
+                , C.borderRadius (C.px 14)
+                , C.backgroundColor (C.rgb 10 16 24)
+                , C.border3 (C.px 1) C.solid (C.rgba 160 190 220 0.28)
+                , C.color (C.rgb 215 227 240)
+                , C.boxShadow5 (C.px 0) (C.px 20) (C.px 45) (C.px 0) (C.rgba 0 0 0 0.35)
+                , C.boxSizing C.borderBox
+                ]
+            ]
+            [ H.div
+                [ At.css
+                    [ C.displayFlex
+                    , C.justifyContent C.spaceBetween
+                    , C.alignItems C.center
+                    , C.marginBottom (C.px 18)
+                    ]
+                ]
+                [ H.h3
+                    [ At.css
+                        [ C.margin C.zero
+                        , C.fontSize (C.px 26)
+                        ]
+                    ]
+                    [ H.text "Game Help" ]
+                , H.div
+                    [ At.css
+                        [ C.fontSize (C.px 13)
+                        , C.opacity (C.num 0.75)
+                        ]
+                    ]
+                    [ H.text "Press ? or Esc to close" ]
+                ]
+            , Yarnballs.viewHelp
+            ]
+        ]
