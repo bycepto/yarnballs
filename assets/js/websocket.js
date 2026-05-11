@@ -1,5 +1,4 @@
 const defaultLog = console.log;
-const DEBUG_QUERY_PARAM = "debug";
 
 const GOOD_COLOR = "#7ee081";
 const WARN_COLOR = "#f2d56b";
@@ -40,22 +39,7 @@ const colorByFrameBudget = (value, frameMs, goodFrames, warnFrames) => {
   return colorByThresholds(value, frameMs * goodFrames, frameMs * warnFrames);
 };
 
-const createMetrics = (enabled) => {
-  if (!enabled) {
-    return {
-      noteInput() {},
-      notePing() {},
-      notePong() {},
-      noteSnapshot() {},
-      noteStateQueued() {},
-      noteStateFlushed() {},
-      setConnected() {},
-      setJoinedTopics() {},
-      resetConnectionMetrics() {},
-      destroy() {},
-    };
-  }
-
+const createMetrics = () => {
   const panel = document.createElement("div");
   panel.id = "yb-debug-metrics";
   Object.assign(panel.style, {
@@ -73,6 +57,7 @@ const createMetrics = (enabled) => {
     boxShadow: "0 10px 30px rgba(0, 0, 0, 0.25)",
     pointerEvents: "none",
     boxSizing: "border-box",
+    display: "none",
   });
   document.body.appendChild(panel);
 
@@ -310,6 +295,9 @@ const createMetrics = (enabled) => {
       state.joinedTopics = count;
       render();
     },
+    setVisible(visible) {
+      panel.style.display = visible ? "block" : "none";
+    },
     resetConnectionMetrics() {
       state.joinedTopics = 0;
       state.snapshotRate = 0;
@@ -349,10 +337,7 @@ const setupWebSocket = (app, log = defaultLog) => {
   let pingIntervalId = null;
   const leaveTopicPort = app.ports.leaveTopic;
   const confirmLeftTopicPort = app.ports.confirmLeftTopic;
-  const showMetrics =
-    process.env.APP_MODE === "development" ||
-    new URLSearchParams(window.location.search).get(DEBUG_QUERY_PARAM) === "1";
-  const metrics = createMetrics(showMetrics);
+  const metrics = createMetrics();
 
   const flushStateMessage = () => {
     stateFlushScheduled = false;
@@ -549,6 +534,10 @@ const setupWebSocket = (app, log = defaultLog) => {
       log("Socket disconnected!");
     });
   });
+
+  return {
+    setDebugMetricsVisible: metrics.setVisible,
+  };
 };
 
 export { setupWebSocket };

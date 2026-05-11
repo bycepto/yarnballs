@@ -1,11 +1,19 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import Browser exposing (Document)
+import Browser.Events
 import Css as C
 import Env exposing (Env)
 import Html.Styled as H
 import Html.Styled.Attributes as At
+import Json.Decode as D
+import Url
+import Url.Parser as Parser exposing ((<?>), top)
+import Url.Parser.Query as Query
 import Yarnballs exposing (Yarnballs)
+
+
+port setDebugMetricsVisible : Bool -> Cmd msg
 
 
 
@@ -32,11 +40,18 @@ type alias Model =
 
     -- Page
     , page : Page
+    , debugMetrics : DebugMetrics
     }
 
 
 type Page
     = Game Yarnballs
+
+
+type alias DebugMetrics =
+    { available : Bool
+    , visible : Bool
+    }
 
 
 
@@ -51,15 +66,58 @@ init flags =
 
         ( game, gameCmd ) =
             Yarnballs.init
+
+        debugMetrics =
+            initDebugMetrics flags
     in
     ( { env = env
       , page = Game game
+      , debugMetrics = debugMetrics
       }
     , Cmd.batch
         [ envCmd
         , gameCmd
+        , setDebugMetricsVisible debugMetrics.visible
         ]
     )
+
+
+initDebugMetrics : Env.Flags -> DebugMetrics
+initDebugMetrics flags =
+    let
+        available =
+            flags.devMode || hasDebugQuery flags.queryString
+    in
+    { available = available
+    , visible = available
+    }
+
+
+hasDebugQuery : String -> Bool
+hasDebugQuery queryString =
+    let
+        urlString =
+            "https://yarnballs.local/" ++ normalizeQueryString queryString
+    in
+    case Url.fromString urlString of
+        Nothing ->
+            False
+
+        Just url ->
+            Parser.parse (top <?> Query.string "debug") url
+                == Just (Just "1")
+
+
+normalizeQueryString : String -> String
+normalizeQueryString queryString =
+    if String.isEmpty queryString then
+        ""
+
+    else if String.startsWith "?" queryString then
+        queryString
+
+    else
+        "?" ++ queryString
 
 
 
@@ -69,6 +127,7 @@ init flags =
 type Msg
     = GotEnvMsg Env.Msg
     | GotPageYarnballsMsg Yarnballs.Msg
+    | GotDebugKey String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -95,6 +154,28 @@ update msg model =
                     , cmd
                     )
 
+        GotDebugKey key ->
+            if model.debugMetrics.available && String.toLower key == "x" then
+                let
+                    visible =
+                        not model.debugMetrics.visible
+
+                    newDebugMetrics =
+                        let
+                            debugMetrics =
+                                model.debugMetrics
+                        in
+                        { debugMetrics | visible = visible }
+                in
+                ( { model
+                    | debugMetrics = newDebugMetrics
+                  }
+                , setDebugMetricsVisible visible
+                )
+
+            else
+                ( model, Cmd.none )
+
 
 
 -- SUBSCRIPTIONS
@@ -107,6 +188,11 @@ subscriptions model =
         , case model.page of
             Game page ->
                 Yarnballs.subscriptions GotPageYarnballsMsg page.ws
+        , if model.debugMetrics.available then
+            Browser.Events.onKeyDown (D.map GotDebugKey (D.field "key" D.string))
+
+          else
+            Sub.none
         ]
 
 

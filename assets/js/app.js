@@ -33,7 +33,18 @@ const app = Elm.Main.init({
     baseUrl: process.env.BASE_HTTP_URL,
     devMode: DEV_MODE,
     accessToken: accessToken(),
+    queryString: window.location.search,
   },
+});
+
+let debugMetricsVisible = false;
+let debugMetricsControls = null;
+
+app.ports.setDebugMetricsVisible.subscribe((visible) => {
+  debugMetricsVisible = visible;
+  if (debugMetricsControls) {
+    debugMetricsControls.setDebugMetricsVisible(visible);
+  }
 });
 
 // Session handlers
@@ -57,4 +68,5 @@ app.ports.setDisplayName.subscribe(setDisplayName);
 
 // Setup websocket
 
-setupWebSocket(app, log);
+debugMetricsControls = setupWebSocket(app, log);
+debugMetricsControls.setDebugMetricsVisible(debugMetricsVisible);

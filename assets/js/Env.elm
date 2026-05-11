@@ -37,6 +37,7 @@ type alias Flags =
     { baseUrl : String
     , devMode : Bool
     , accessToken : Maybe String
+    , queryString : String
     }
 
 
