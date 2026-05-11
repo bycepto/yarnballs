@@ -6,6 +6,16 @@ const BAD_COLOR = "#ff7b72";
 const NEUTRAL_COLOR = "#d7e3f0";
 const COALESCE_WINDOW_MS = 5000;
 
+const websocketUrl = () => {
+  if (process.env.APP_MODE === "development") {
+    return new URL(process.env.BASE_WS_URL);
+  }
+
+  const url = new URL("/ws", window.location.origin);
+  url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return url;
+};
+
 const colorByThresholds = (value, goodMax, warnMax) => {
   if (value == null) {
     return NEUTRAL_COLOR;
@@ -425,7 +435,7 @@ const setupWebSocket = (app, log = defaultLog) => {
       return;
     }
 
-    const url = new URL(process.env.BASE_WS_URL);
+    const url = websocketUrl();
     url.searchParams.set("token", token);
     socket = new WebSocket(url);
 
