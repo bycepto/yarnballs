@@ -8,6 +8,14 @@ dev: setup-frontend
 setup-frontend:
 	pnpm -C assets install
 
+.PHONY: test
+test: test-frontend test-go
+
+.PHONY: test-frontend
+test-frontend:
+	# Just check if elm compiles
+	cd assets && elm make js/Main.elm --output=/dev/null
+
 .PHONY: test-go
 test-go:
 	GOCACHE=$(GOCACHE) go test ./...
