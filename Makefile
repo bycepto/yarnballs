@@ -1,16 +1,12 @@
 GOCACHE ?= /tmp/gocache
 
-.PHONY: dev-go
-dev-go:
-	STATIC_URL=http://localhost:3000 go run ./cmd/server
-
-.PHONY: dev-frontend
-dev-frontend:
-	cd assets && pnpm dev
-
 .PHONY: dev
-dev:
+dev: setup-frontend
 	bash etc/scripts/dev.sh
+
+.PHONY: setup-frontend
+setup-frontend:
+	pnpm -C assets install
 
 .PHONY: test-go
 test-go:
