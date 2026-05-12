@@ -498,21 +498,21 @@ renderDebris debrisTexture lanes =
 renderStats : Game -> List V.Renderable
 renderStats game =
     [ V.text
-        [ VW.align VW.Left
+        [ VW.align VW.Center
         , VW.baseLine VW.Top
         , VS.fill Color.darkGreen
         , VW.font { size = 18, family = "san-serif" }
         ]
-        ( 5, 5 )
+        ( game.width / 2, 32 )
         ("score: " ++ String.fromInt game.score)
     , V.text
-        [ VW.align VW.Right
+        [ VW.align VW.Center
         , VW.baseLine VW.Bottom
         , VS.fill Color.darkGreen
         , VA.alpha 0.85
         , VW.font { size = 16, family = "san-serif" }
         ]
-        ( game.width - 8, game.height - 8 )
+        ( game.width / 2, game.height - 8 )
         "press ? for help/credits"
     ]
 
@@ -568,7 +568,7 @@ renderProgressBar game =
                 [ VS.fill Color.lightGray
                 ]
                 [ V.rect
-                    ( game.width - progressBarWidth - 5, 5 )
+                    ( (game.width - progressBarWidth) / 2, 5 )
                     progressBarWidth
                     progressBarHeight
                 ]
@@ -576,7 +576,7 @@ renderProgressBar game =
                 [ VS.fill Color.darkGray
                 ]
                 [ V.rect
-                    ( game.width - progressBarWidth - 5, 5 )
+                    ( (game.width - progressBarWidth) / 2, 5 )
                     (progressBarWidth * pct)
                     progressBarHeight
                 ]
@@ -585,7 +585,7 @@ renderProgressBar game =
                 , VW.font { size = 18, family = "san-serif" }
                 , VW.align VW.Center
                 ]
-                ( game.width - (progressBarWidth / 2) - 5, 20 )
+                ( game.width / 2, 20 )
                 ("Level " ++ String.fromInt (levelNumber game.level))
             ]
 
